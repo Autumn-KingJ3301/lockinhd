@@ -14,7 +14,10 @@ export const Toolbar: React.FC = () => {
   const setShowHistoryPanel = useLockinStore((state) => state.setShowHistoryPanel);
   const showInboxPanel = useLockinStore((state) => state.showInboxPanel);
   const setShowInboxPanel = useLockinStore((state) => state.setShowInboxPanel);
+  const showTasksPanel = useLockinStore((state) => state.showTasksPanel);
+  const setShowTasksPanel = useLockinStore((state) => state.setShowTasksPanel);
   const sessions = useLockinStore((state) => state.sessions);
+  const queue = useLockinStore((state) => state.queue);
   const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
   const setToastMsg = useLockinStore((state) => state.setToastMsg);
 
@@ -55,6 +58,13 @@ export const Toolbar: React.FC = () => {
         style={{ marginRight: "6px" }}
       >
         {showHistoryPanel ? "Hide History" : "Show History"} ({sessions.length})
+      </button>
+      <button
+        className="theme-toggle-btn"
+        onClick={() => setShowTasksPanel(!showTasksPanel)}
+        style={{ marginRight: "6px" }}
+      >
+        {showTasksPanel ? "Hide Tasks" : "Show Tasks"} ({queue.length})
       </button>
       <button
         className="theme-toggle-btn"

@@ -3,7 +3,7 @@ import { useLockinStore } from "../store/useLockinStore";
 import { SuggestionsOverlay } from "./SuggestionsOverlay";
 import { formatPanicTime, formatTimestamp } from "../utils/timeFormatters";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
-import { getCommandSplit } from "../utils/commandParser";
+import { getParsedCommand } from "../utils/commandParser";
 
 type PanicModalProps = {
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -37,7 +37,7 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
     }
   }, [session?.notes]);
 
-  if (!showPanicModal || mode !== "active" || !session || session.panicEndElapsed === undefined) {
+  if (!showPanicModal || mode !== "panic" || !session || session.panicEndElapsed === undefined) {
     return null;
   }
 
@@ -180,34 +180,29 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
           )}
           <div className="input-wrapper" onClick={() => inputRef.current?.focus()}>
             {(() => {
-              const split = getCommandSplit(input);
-              if (split) {
-                const category = (() => {
-                  const tasks = ["add", "sidetrack", "todo", "continue", "remove-queue", "delete-idea", "panic"];
-                  const actions = ["done", "check", "remove", "export", "minimize"];
-                  const nav = ["history", "inbox", "profile", "help"];
-                  const settings = ["theme", "zen", "sound"];
-                  
-                  if (tasks.includes(split.cmdName)) return "tasks";
-                  if (actions.includes(split.cmdName)) return "actions";
-                  if (nav.includes(split.cmdName)) return "nav";
-                  if (settings.includes(split.cmdName)) return "settings";
-                  return "default";
-                })();
-
+              const parsed = getParsedCommand(input);
+              if (parsed) {
                 return (
                   <>
-                    <div className={`command-chip chip-${category}`}>
-                      {split.commandPart.substring(1)}
-                    </div>
+                    {parsed.tokens.map((token, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`command-chip chip-${token.category || (token.schema ? "default" : "tasks")}`}
+                      >
+                        {token.value}
+                      </div>
+                    ))}
                     <input
                       ref={inputRef}
                       type="text"
                       className="command-input"
-                      value={split.argsPart}
-                      onChange={(e) => setInput(split.commandPart + " " + e.target.value)}
+                      value={parsed.remainingInput}
+                      onChange={(e) => {
+                        const base = parsed.tokens.map(t => (t.type === "command" ? "/" : "") + t.value).join("\x1f");
+                        setInput(base + "\x1f" + e.target.value);
+                      }}
                       onKeyDown={handleKeyDown}
-                      placeholder={placeholderText}
+                      placeholder={parsed.nextArg ? `[${parsed.nextArg.name}]` : placeholderText}
                       autoFocus
                     />
                   </>

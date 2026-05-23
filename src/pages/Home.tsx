@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { parseCommand, getCommandSplit, parseDuration } from "../utils/commandParser";
+import { getParsedCommand, parseDuration, commandRegistry } from "../utils/commandParser";
 import { generateMarkdownExport } from "../utils/markdownExporter";
 import { useLockinStore } from "../store/useLockinStore";
 import { useAuthStore } from "../store/useAuthStore";
@@ -9,6 +9,7 @@ import type { Theme } from "../types";
 import { Toolbar } from "../components/Toolbar";
 import { HistoryPanel } from "../components/HistoryPanel";
 import { InboxPanel } from "../components/InboxPanel";
+import { TasksPanel } from "../components/TasksPanel";
 import { CoreLockin } from "../components/CoreLockin";
 import { FloatingTimer } from "../components/FloatingTimer";
 import { PanicModal } from "../components/PanicModal";
@@ -34,6 +35,7 @@ export const Home = () => {
   const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
   const showHistoryPanel = useLockinStore((state) => state.showHistoryPanel);
   const showInboxPanel = useLockinStore((state) => state.showInboxPanel);
+  const showTasksPanel = useLockinStore((state) => state.showTasksPanel);
   const theme = useLockinStore((state) => state.theme);
   const dismissedSuggestions = useLockinStore((state) => state.dismissedSuggestions);
   const selectedSuggestionIndex = useLockinStore((state) => state.selectedSuggestionIndex);
@@ -64,6 +66,7 @@ export const Home = () => {
   const exitWrapMode = useLockinStore((state) => state.exitWrapMode);
   const setShowHistoryPanel = useLockinStore((state) => state.setShowHistoryPanel);
   const setShowInboxPanel = useLockinStore((state) => state.setShowInboxPanel);
+  const setShowTasksPanel = useLockinStore((state) => state.setShowTasksPanel);
   const setTheme = useLockinStore((state) => state.setTheme);
   const continueSession = useLockinStore((state) => state.continueSession);
   const deleteQueueItem = useLockinStore((state) => state.deleteQueueItem);
@@ -78,7 +81,8 @@ export const Home = () => {
   const setSelectedHistorySession = useLockinStore((state) => state.setSelectedHistorySession);
   const setSelectedRevisionIndex = useLockinStore((state) => state.setSelectedRevisionIndex);
   const setPanicTimer = useLockinStore((state) => state.setPanicTimer);
-  const cancelPanicTimer = useLockinStore((state) => state.cancelPanicTimer);
+  const setSessionTimer = useLockinStore((state) => state.setSessionTimer);
+  const startPanicSession = useLockinStore((state) => state.startPanicSession);
   const setShowPanicModal = useLockinStore((state) => state.setShowPanicModal);
 
   // Refs
@@ -167,6 +171,10 @@ export const Home = () => {
         e.preventDefault();
         setShowInboxPanel(!showInboxPanel);
       }
+      if (e.altKey && e.code === "KeyT") {
+        e.preventDefault();
+        setShowTasksPanel(!showTasksPanel);
+      }
     };
     window.addEventListener("keydown", handleShortcuts);
     return () => {
@@ -177,7 +185,7 @@ export const Home = () => {
   // Active Timer Effect
   useEffect(() => {
     let intervalId: ReturnType<typeof setInterval> | null = null;
-    if (mode === "active") {
+    if (mode === "active" || mode === "panic") {
       intervalId = setInterval(() => {
         tickElapsed();
       }, 1000);
@@ -191,8 +199,12 @@ export const Home = () => {
 
   // Panic Ticks and Alarm sound effect
   useEffect(() => {
-    if (mode === "active" && session?.panicEndElapsed !== undefined) {
-      const remaining = session.panicEndElapsed - elapsed;
+    const isPanic = mode === "panic" && session?.panicEndElapsed !== undefined;
+    const isTimer = mode === "active" && session?.timerEndElapsed !== undefined;
+    
+    if (isPanic || isTimer) {
+      const endElapsed = isPanic ? session!.panicEndElapsed! : session!.timerEndElapsed!;
+      const remaining = endElapsed - elapsed;
       if (remaining === 0) {
         if (soundEnabled) {
           try { playPanicExpiredAlarm(); } catch (e) {}
@@ -214,7 +226,7 @@ export const Home = () => {
         }
       }
     }
-  }, [elapsed, mode, session?.panicEndElapsed, soundEnabled]);
+  }, [elapsed, mode, session, soundEnabled]);
 
   // Suggestions — sourced from shared utility (single source of truth)
   const commandSuggestions = getCommandSuggestions(mode, sessions, queue, idleSidetracks, session, selectedHistorySession, input);
@@ -227,13 +239,13 @@ export const Home = () => {
   useEffect(() => {
     if (!input.startsWith("/")) {
       setDismissedSuggestions(false);
-      setSelectedSuggestionIndex(0);
+      setSelectedSuggestionIndex(-1);
     }
   }, [input, setDismissedSuggestions, setSelectedSuggestionIndex]);
 
   // Clamp selection index on filter length changes
   useEffect(() => {
-    setSelectedSuggestionIndex(0);
+    setSelectedSuggestionIndex(-1);
   }, [filteredSuggestions.length, setSelectedSuggestionIndex]);
 
   // Keyboard Event Handlers
@@ -269,7 +281,7 @@ export const Home = () => {
         setShowHelp(false);
         return;
       }
-      if (mode === "active" && session?.panicEndElapsed !== undefined && showPanicModal) {
+      if (mode === "panic" && session?.panicEndElapsed !== undefined && showPanicModal) {
         e.preventDefault();
         setShowPanicModal(false);
         setToastMsg("Minimized focus modal. Click floating timer to reopen.");
@@ -278,10 +290,13 @@ export const Home = () => {
     }
 
     if (e.key === "Backspace" && input.startsWith("/")) {
-      const split = getCommandSplit(input);
-      if (split && split.argsPart === "") {
+      const parsed = getParsedCommand(input);
+      if (parsed && parsed.remainingInput === "") {
         e.preventDefault();
-        setInput(split.commandPart);
+        // Remove the last token
+        const newTokens = parsed.tokens.slice(0, -1);
+        const newInput = newTokens.map(t => (t.type === "command" ? "/" : "") + t.value).join("\x1f");
+        setInput(newInput + (newTokens.length > 0 ? "\x1f" : ""));
         return;
       }
     }
@@ -289,30 +304,30 @@ export const Home = () => {
     if (showSuggestions) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedSuggestionIndex((selectedSuggestionIndex + 1) % filteredSuggestions.length);
+        const nextIdx = selectedSuggestionIndex === -1 ? 0 : (selectedSuggestionIndex + 1) % filteredSuggestions.length;
+        setSelectedSuggestionIndex(nextIdx);
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedSuggestionIndex(
-          (selectedSuggestionIndex - 1 + filteredSuggestions.length) % filteredSuggestions.length
-        );
+        const nextIdx = selectedSuggestionIndex === -1 ? filteredSuggestions.length - 1 : (selectedSuggestionIndex - 1 + filteredSuggestions.length) % filteredSuggestions.length;
+        setSelectedSuggestionIndex(nextIdx);
         return;
       }
       if (e.key === "Enter") {
-        e.preventDefault();
-        const selectedCmd = filteredSuggestions[selectedSuggestionIndex];
-        if (input === selectedCmd.command) {
-          handleEnterSubmit();
-        } else {
-          setInput(selectedCmd.command);
+        if (selectedSuggestionIndex >= 0) {
+          e.preventDefault();
+          const selectedCmd = filteredSuggestions[selectedSuggestionIndex];
+          // Process the selected suggestion through handleEnterSubmit for immediate chipping/execution
+          handleEnterSubmit(selectedCmd.command);
+          return;
         }
-        return;
       }
       if (e.key === "Tab") {
         e.preventDefault();
-        const selectedCmd = filteredSuggestions[selectedSuggestionIndex];
-        setInput(selectedCmd.command);
+        const selectedIdx = selectedSuggestionIndex >= 0 ? selectedSuggestionIndex : 0;
+        const selectedCmd = filteredSuggestions[selectedIdx];
+        setInput(selectedCmd.command + "\x1f");
         return;
       }
       if (e.key === "Escape") {
@@ -323,8 +338,10 @@ export const Home = () => {
     }
 
     if (e.key === "Tab") {
-      if (mode === "idle" && queue.length > 0) {
-        e.preventDefault();
+      e.preventDefault();
+      if (input.startsWith("/")) {
+        handleTabSubmit();
+      } else if (mode === "idle" && queue.length > 0) {
         setInput(queue[0].text);
       }
     } else if (e.key === "Enter") {
@@ -345,328 +362,362 @@ export const Home = () => {
     }
   };
 
-  const handleEnterSubmit = () => {
+  const handleTabSubmit = () => {
     const trimmedInput = input.trim();
-    const parsed = parseCommand(input);
+    if (!trimmedInput.startsWith("/")) return;
 
-    if (parsed) {
-      const { cmdName, args } = parsed;
+    const parsedResult = getParsedCommand(input);
 
-      if (cmdName === "panic") {
-        if (mode === "active") {
-          const trimmedArg = args.trim().toLowerCase();
-          if (trimmedArg === "" || trimmedArg === "extend") {
-            // Extend by default 2 minutes (120s)
-            setPanicTimer(120, true);
-            setToastMsg("Extended panic countdown by 2 minutes!");
-          } else if (trimmedArg === "off" || trimmedArg === "cancel" || trimmedArg === "clear" || trimmedArg === "nopanic") {
-            cancelPanicTimer();
-            setToastMsg("Panic timer disabled.");
-          } else {
-            const hasSign = args.startsWith("+") || args.startsWith("-");
-            const seconds = parseDuration(args);
-            if (seconds !== null) {
-              if (hasSign) {
-                setPanicTimer(seconds, true);
-                setToastMsg(seconds > 0 
-                  ? `Extended panic countdown by ${formatSummaryDuration(seconds)}!` 
-                  : `Reduced panic countdown by ${formatSummaryDuration(Math.abs(seconds))}!`
-                );
-              } else {
-                setPanicTimer(seconds, false);
-                setToastMsg(`Panic countdown set to ${formatSummaryDuration(seconds)}!`);
-              }
-            } else {
-              setToastMsg("Invalid duration. E.g. `/panic +5m` or `/panic 10m` or `/panic off`.");
-            }
-          }
-        } else if (mode === "idle") {
-          const trimmedArg = args.trim();
-          if (trimmedArg === "") {
-            setToastMsg("Usage: `/panic [duration] [task]` or `/panic [task]` (e.g. `/panic Clean room.`)");
-          } else {
-            const spaceIdx = trimmedArg.indexOf(" ");
-            let seconds: number | null = null;
-            let taskPart = "";
-
-            if (spaceIdx !== -1) {
-              const firstWord = trimmedArg.substring(0, spaceIdx);
-              const rest = trimmedArg.substring(spaceIdx + 1).trim();
-              const parsedSecs = parseDuration(firstWord);
-              if (parsedSecs !== null) {
-                seconds = parsedSecs;
-                taskPart = rest;
-              } else {
-                seconds = 300; // Default 5 minutes
-                taskPart = trimmedArg;
-              }
-            } else {
-              // No space
-              const parsedSecs = parseDuration(trimmedArg);
-              if (parsedSecs !== null) {
-                // It's just a duration, e.g. "/panic 5"
-                setToastMsg("Specify a task: `/panic [duration] [task]`");
-                setInput("");
-                return;
-              } else {
-                seconds = 300; // Default 5 minutes
-                taskPart = trimmedArg;
-              }
-            }
-
-            if (taskPart !== "") {
-              startSession(taskPart);
-              setPanicTimer(seconds);
-              setToastMsg(`Started "${taskPart}" with ${formatSummaryDuration(seconds)} panic!`);
-            }
-          }
-        }
-        setInput("");
-        return;
+    if (!parsedResult) {
+      const cmdName = trimmedInput.substring(1).split("\x1f")[0].toLowerCase();
+      const schema = commandRegistry.find(s => s.name === cmdName || s.shortcuts?.includes(cmdName));
+      if (schema) {
+        setInput("/" + schema.name + "\x1f");
       }
+      return;
+    }
 
-      if (cmdName === "minimize") {
-        if (mode === "active") {
-          setShowPanicModal(false);
-          setToastMsg("Minimized focus modal. Click floating timer to reopen.");
-        } else {
-          setToastMsg("Minimize only works during active sessions.");
-        }
-        setInput("");
-        return;
-      }
+    const { remainingInput } = parsedResult;
 
-      if (cmdName === "revision") {
-        if (selectedHistorySession) {
-          if (!args) {
-            setSelectedRevisionIndex(null);
-            setToastMsg("Showing all revisions (aggregated).");
-          } else {
-            const revNum = parseInt(args, 10);
-            const exists = selectedHistorySession.revisionHistory?.some(r => r.revisionNumber === revNum);
-            if (exists) {
-              setSelectedRevisionIndex(revNum - 1);
-              setToastMsg(`Viewing Revision ${revNum}.`);
-            } else {
-              setToastMsg(`Revision ${revNum} not found.`);
-            }
-          }
-        } else {
-          setToastMsg("Please select a session from history first.");
-        }
-        setInput("");
-        return;
-      }
+    if (remainingInput.trim() !== "") {
+      setInput(input + "\x1f");
+    }
+  };
 
-      if (cmdName === "profile") {
-        navigate("/profile");
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "export") {
-        const md = generateMarkdownExport(sessions, idleSidetracks);
-        navigator.clipboard.writeText(md)
-          .then(() => setToastMsg("Copied focus log to clipboard!"))
-          .catch(() => setToastMsg("Copy failed."));
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "sidetrack") {
-        if (args) {
-          addSidetrack(args);
-          setToastMsg(mode === "active" ? "Captured sidetrack inside session!" : "Captured sidetrack in inbox!");
-        }
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "add") {
-        if (args) {
-          addToQueue(args);
-        }
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "history") {
-        setShowHistoryPanel(!showHistoryPanel);
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "inbox") {
-        setShowInboxPanel(!showInboxPanel);
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "theme") {
-        const lowerArg = args.toLowerCase();
-        if (lowerArg === "light" || lowerArg === "dark" || lowerArg === "system") {
-          setTheme(lowerArg);
-        } else if (!lowerArg) {
-          const modes: Theme[] = ["system", "light", "dark"];
-          const nextIdx = (modes.indexOf(theme) + 1) % modes.length;
-          setTheme(modes[nextIdx]);
-        } else {
-          setToastMsg("Invalid theme. Use light, dark, or system.");
-        }
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "zen") {
-        toggleZenMode();
-        setToastMsg(zenMode ? "Zen mode off — panels restored." : "Zen mode on — panels hidden.");
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "sound") {
-        setSoundEnabled(!soundEnabled);
-        setToastMsg(soundEnabled ? "Sound feedback disabled." : "Sound feedback enabled!");
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "help") {
-        toggleHelp();
-        setInput("");
-        return;
-      }
-
-      if (cmdName === "continue") {
-        if (sessions.length === 0) {
-          setToastMsg("No completed sessions in history to continue.");
+  const handleEnterSubmit = (overrideInput?: string) => {
+    const targetInput = overrideInput ?? input;
+    const trimmedInput = targetInput.trim();
+    if (!trimmedInput.startsWith("/")) {
+      if (mode === "idle") {
+        if (trimmedInput) startSession(trimmedInput);
+      } else if (mode === "active" || mode === "panic") {
+        if (trimmedInput) {
+          addNote(trimmedInput);
           setInput("");
-          return;
         }
-        if (!args) {
-          continueSession(sessions[sessions.length - 1]);
-          setToastMsg("Resumed last focus session.");
+      } else if (mode === "wrap") {
+        const triageActive = triageSidetracks.length > 0 && activeTriageIndex < triageSidetracks.length;
+        if (triageActive) {
+          processCurrentTriage("keep");
+          setInput("");
+        } else if (trimmedInput === "") {
+          if (queue.length > 0) startNextQueuedTask();
+          else exitWrapMode();
         } else {
-          const index = parseInt(args, 10);
-          if (!isNaN(index) && index >= 1 && index <= sessions.length) {
-            continueSession(sessions[sessions.length - index]);
-            setToastMsg(`Resumed session: ${sessions[sessions.length - index].task}`);
-          } else {
-            setToastMsg(`Invalid session index. Provide 1 to ${sessions.length}.`);
-          }
+          setResumeCueToLastSession(trimmedInput);
+          setToastMsg("Resume cue saved! Starting fresh.");
+          exitWrapMode();
         }
-        setInput("");
-        return;
       }
+      return;
+    }
 
-      if (cmdName === "remove-queue") {
-        if (queue.length === 0) {
-          setToastMsg("Queue is empty.");
-          setInput("");
-          return;
-        }
-        const index = parseInt(args, 10);
-        if (!isNaN(index) && index >= 1 && index <= queue.length) {
-          const item = queue[index - 1];
-          deleteQueueItem(item.id);
-          setToastMsg(`Removed from queue: ${item.text}`);
+    const parsedResult = getParsedCommand(targetInput);
+
+    if (!parsedResult) {
+      // Command not chipped yet. Check if it's a valid command.
+      const cmdName = trimmedInput.substring(1).split("\x1f")[0].toLowerCase();
+      const schema = commandRegistry.find(s => s.name === cmdName || s.shortcuts?.includes(cmdName));
+      if (schema) {
+        if (schema.args.length === 0) {
+          // Zero-arg command like /done or /help execute immediately
+          executeCommand(schema, [], "");
         } else {
-          setToastMsg(`Invalid queue index. Provide 1 to ${queue.length}.`);
+          // Has args, chip the command first by adding a \x1f
+          setInput("/" + schema.name + "\x1f");
         }
+      } else {
+        // Unknown command
         setInput("");
-        return;
       }
+      return;
+    }
 
-      if (cmdName === "delete-idea") {
-        if (idleSidetracks.length === 0) {
-          setToastMsg("Inbox is empty.");
-          setInput("");
+    const { schema, tokens, remainingInput, nextArg } = parsedResult;
+
+    if (remainingInput.trim() !== "") {
+      // We have text typed but not chipped. 
+      // If it's the LAST argument, we can execute immediately.
+      const isLastArg = tokens.length - 1 === schema.args.length - 1;
+      
+      if (isLastArg) {
+        // Build tokens with the final argument
+        const finalTokens = [...tokens, { type: "arg", value: remainingInput.trim(), schema: nextArg, category: schema.category }];
+        const args = finalTokens.slice(1).map(t => (t as any).value).join(" ");
+        executeCommand(schema, finalTokens, args);
+      } else {
+        // Commit it by adding a \x1f (will chip on next render)
+        setInput(targetInput + "\x1f");
+      }
+    } else {
+      // No remaining input text. 
+      // If the command is complete (or arguments are optional), execute.
+      const args = tokens.slice(1).map(t => t.value).join(" ");
+      executeCommand(schema, tokens, args);
+    }
+  };
+
+  const executeCommand = (schema: any, tokens: any[], args: string) => {
+    const cmdName = schema.name;
+
+    if (cmdName === "panic") {
+      const secondsToken = tokens.find(t => t.schema?.type === "duration");
+      const seconds = parseDuration(secondsToken?.value || "2m") || 120;
+      const taskToken = tokens.find(t => t.schema?.type === "task");
+      const taskName = taskToken?.value || "";
+
+      if (mode === "idle") {
+        if (!taskName) {
+          setToastMsg("Specify a task: `/panic [time] [task]`");
           return;
-        }
-        const index = parseInt(args, 10);
-        if (!isNaN(index) && index >= 1 && index <= idleSidetracks.length) {
-          const idea = idleSidetracks[index - 1];
-          deleteIdleSidetrack(index - 1);
-          setToastMsg(`Removed idea: ${idea}`);
         } else {
-          setToastMsg(`Invalid idea index. Provide 1 to ${idleSidetracks.length}.`);
+          startPanicSession(taskName, seconds);
+          setToastMsg(`Started "${taskName}" in PANIC MODE!`);
         }
-        setInput("");
-        return;
+      } else if (mode === "panic") {
+        const hasSign = input.includes("+") || input.includes("-");
+        setPanicTimer(seconds, hasSign);
+        setToastMsg(seconds > 0 ? `Extended panic by ${formatSummaryDuration(seconds)}` : `Reduced panic by ${formatSummaryDuration(Math.abs(seconds))}`);
+      } else {
+        setToastMsg("Panic mode only available from idle or during a panic session.");
       }
-
-      if (mode === "active" && session) {
-        if (cmdName === "todo") {
-          if (args) {
-            addTodo(args);
-          }
-          setInput("");
-          return;
-        }
-
-        if (cmdName === "check") {
-          if (args === "") {
-            toggleTodo(-1);
-          } else {
-            const index = parseInt(args, 10);
-            if (!isNaN(index)) {
-              toggleTodo(index - 1);
-            }
-          }
-          setInput("");
-          return;
-        }
-
-        if (cmdName === "remove") {
-          const index = parseInt(args, 10);
-          if (!isNaN(index)) {
-            removeTodo(index - 1);
-          }
-          setInput("");
-          return;
-        }
-
-        if (cmdName === "done") {
-          completeSession();
-          return;
-        }
-      }
-
-      // Starts with '/' but unrecognized/invalid command for the current mode
       setInput("");
       return;
     }
 
-    // Default regular text submission (non-slash commands)
-    if (mode === "idle") {
-      if (trimmedInput) {
-        startSession(trimmedInput);
-      }
-    } else if (mode === "active") {
-      if (trimmedInput) {
-        addNote(trimmedInput);
-        setInput("");
-      }
-    } else if (mode === "wrap") {
-      const triageActive = triageSidetracks.length > 0 && activeTriageIndex < triageSidetracks.length;
-      if (triageActive) {
-        // In triage mode, Enter means "keep in inbox"
-        processCurrentTriage("keep");
-        setInput("");
-      } else if (trimmedInput === "") {
-        // Triage done — exit wrap mode or go to next queued task
-        if (queue.length > 0) {
-          startNextQueuedTask();
+    if (cmdName === "timer") {
+      if (mode === "active") {
+        const secondsToken = tokens.find(t => t.schema?.type === "duration");
+        const seconds = parseDuration(secondsToken?.value || "") || 0;
+        if (seconds > 0) {
+          const hasSign = input.includes("+") || input.includes("-");
+          setSessionTimer(seconds, hasSign);
+          setToastMsg(`Timer set: ${formatSummaryDuration(seconds)}`);
         } else {
-          exitWrapMode();
+          setToastMsg("Invalid duration for /timer");
         }
       } else {
-        // Save resume cue then clear wrap (or start new session)
-        setResumeCueToLastSession(trimmedInput);
-        setToastMsg("Resume cue saved! Starting fresh.");
-        exitWrapMode();
+        setToastMsg("/timer only works inside a standard session.");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "minimize") {
+      if (mode === "panic") {
+        setShowPanicModal(false);
+        setToastMsg("Minimized focus modal. Click floating timer to reopen.");
+      } else {
+        setToastMsg("Minimize only works during panic sessions.");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "revision") {
+      if (selectedHistorySession) {
+        if (!args) {
+          setSelectedRevisionIndex(null);
+          setToastMsg("Showing all revisions (aggregated).");
+        } else {
+          const revNum = parseInt(args, 10);
+          const exists = selectedHistorySession.revisionHistory?.some(r => r.revisionNumber === revNum);
+          if (exists) {
+            setSelectedRevisionIndex(revNum - 1);
+            setToastMsg(`Viewing Revision ${revNum}.`);
+          } else {
+            setToastMsg(`Revision ${revNum} not found.`);
+          }
+        }
+      } else {
+        setToastMsg("Please select a session from history first.");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "profile") {
+      navigate("/profile");
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "export") {
+      const md = generateMarkdownExport(sessions, idleSidetracks);
+      navigator.clipboard.writeText(md)
+        .then(() => setToastMsg("Copied focus log to clipboard!"))
+        .catch(() => setToastMsg("Copy failed."));
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "sidetrack") {
+      if (args) {
+        addSidetrack(args);
+        setToastMsg(mode === "active" ? "Captured sidetrack inside session!" : "Captured sidetrack in inbox!");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "add") {
+      if (args) {
+        addToQueue(args);
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "history") {
+      setShowHistoryPanel(!showHistoryPanel);
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "tasks") {
+      setShowTasksPanel(!showTasksPanel);
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "inbox") {
+      setShowInboxPanel(!showInboxPanel);
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "theme") {
+      const lowerArg = args.toLowerCase();
+      if (lowerArg === "light" || lowerArg === "dark" || lowerArg === "system") {
+        setTheme(lowerArg);
+      } else if (!lowerArg) {
+        const modes: Theme[] = ["system", "light", "dark"];
+        const nextIdx = (modes.indexOf(theme) + 1) % modes.length;
+        setTheme(modes[nextIdx]);
+      } else {
+        setToastMsg("Invalid theme. Use light, dark, or system.");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "zen") {
+      toggleZenMode();
+      setToastMsg(zenMode ? "Zen mode off — panels restored." : "Zen mode on — panels hidden.");
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "sound") {
+      setSoundEnabled(!soundEnabled);
+      setToastMsg(soundEnabled ? "Sound feedback disabled." : "Sound feedback enabled!");
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "help") {
+      toggleHelp();
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "continue") {
+      if (sessions.length === 0) {
+        setToastMsg("No completed sessions in history to continue.");
+        setInput("");
+        return;
+      }
+      if (!args) {
+        continueSession(sessions[sessions.length - 1]);
+        setToastMsg("Resumed last focus session.");
+      } else {
+        const index = parseInt(args, 10);
+        if (!isNaN(index) && index >= 1 && index <= sessions.length) {
+          continueSession(sessions[sessions.length - index]);
+          setToastMsg(`Resumed session: ${sessions[sessions.length - index].task}`);
+        } else {
+          setToastMsg(`Invalid session index. Provide 1 to ${sessions.length}.`);
+        }
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "remove-queue") {
+      if (queue.length === 0) {
+        setToastMsg("Queue is empty.");
+        setInput("");
+        return;
+      }
+      const index = parseInt(args, 10);
+      if (!isNaN(index) && index >= 1 && index <= queue.length) {
+        const item = queue[index - 1];
+        deleteQueueItem(item.id);
+        setToastMsg(`Removed from queue: ${item.text}`);
+      } else {
+        setToastMsg(`Invalid queue index. Provide 1 to ${queue.length}.`);
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "delete-idea") {
+      if (idleSidetracks.length === 0) {
+        setToastMsg("Inbox is empty.");
+        setInput("");
+        return;
+      }
+      const index = parseInt(args, 10);
+      if (!isNaN(index) && index >= 1 && index <= idleSidetracks.length) {
+        const idea = idleSidetracks[index - 1];
+        deleteIdleSidetrack(index - 1);
+        setToastMsg(`Removed idea: ${idea}`);
+      } else {
+        setToastMsg(`Invalid idea index. Provide 1 to ${idleSidetracks.length}.`);
+      }
+      setInput("");
+      return;
+    }
+
+    if ((mode === "active" || mode === "panic") && session) {
+      if (cmdName === "todo") {
+        if (args) {
+          addTodo(args);
+        }
+        setInput("");
+        return;
+      }
+
+      if (cmdName === "check") {
+        if (args === "") {
+          toggleTodo(-1);
+        } else {
+          const index = parseInt(args, 10);
+          if (!isNaN(index)) {
+            toggleTodo(index - 1);
+          }
+        }
+        setInput("");
+        return;
+      }
+
+      if (cmdName === "remove") {
+        const index = parseInt(args, 10);
+        if (!isNaN(index)) {
+          removeTodo(index - 1);
+        }
+        setInput("");
+        return;
+      }
+
+      if (cmdName === "done") {
+        completeSession();
+        return;
       }
     }
+
+    // Unrecognized for current mode
+    setInput("");
   };
 
   // Determine input values based on current state & mode
@@ -718,6 +769,13 @@ export const Home = () => {
         {showHistoryPanel && (
           <div className={`panel-slide${zenMode ? " zen-hidden" : ""}`}>
             <HistoryPanel />
+          </div>
+        )}
+
+        {/* New Left Column: Tasks Panel */}
+        {showTasksPanel && (
+          <div className={`panel-slide${zenMode ? " zen-hidden" : ""}`}>
+            <TasksPanel />
           </div>
         )}
 

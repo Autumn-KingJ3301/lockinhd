@@ -1,43 +1,211 @@
-export type ParsedCommand = {
-  cmdName: string; // Normalized name (e.g., 'export', 'sidetrack', 'add', 'todo', 'check', 'remove', 'done')
-  args: string;
+export type ArgType = "duration" | "task" | "string" | "option" | "index";
+
+export type CommandArg = {
+  name: string;
+  type: ArgType;
+  optional?: boolean;
+  options?: string[]; // for "option" type
+  allowSpaces?: boolean;
 };
 
-export function parseCommand(input: string): ParsedCommand | null {
-  const trimmed = input.trim();
-  if (!trimmed.startsWith("/")) {
-    return null;
-  }
-  
-  const spaceIdx = trimmed.indexOf(" ");
-  const rawCmd = spaceIdx === -1 ? trimmed : trimmed.substring(0, spaceIdx);
-  const args = spaceIdx === -1 ? "" : trimmed.substring(spaceIdx + 1).trim();
-  
-  const cmdLower = rawCmd.substring(1).toLowerCase();
-  
-  let cmdName = cmdLower;
-  if (cmdLower === "e") cmdName = "export";
-  else if (cmdLower === "s") cmdName = "sidetrack";
-  else if (cmdLower === "t") cmdName = "todo";
-  else if (cmdLower === "c") cmdName = "check";
-  else if (cmdLower === "r") cmdName = "remove";
-  else if (cmdLower === "d") cmdName = "done";
-  else if (cmdLower === "h" || cmdLower === "history") cmdName = "history";
-  else if (cmdLower === "i" || cmdLower === "inbox") cmdName = "inbox";
-  else if (cmdLower === "con" || cmdLower === "continue") cmdName = "continue";
-  else if (cmdLower === "rq" || cmdLower === "remove-queue") cmdName = "remove-queue";
-  else if (cmdLower === "di" || cmdLower === "delete-idea") cmdName = "delete-idea";
-  else if (cmdLower === "theme") cmdName = "theme";
-  else if (cmdLower === "z" || cmdLower === "zen") cmdName = "zen";
-  else if (cmdLower === "so" || cmdLower === "sound") cmdName = "sound";
-  else if (cmdLower === "help" || cmdLower === "?") cmdName = "help";
-  else if (cmdLower === "p" || cmdLower === "profile") cmdName = "profile";
-  else if (cmdLower === "rev" || cmdLower === "revision") cmdName = "revision";
-  else if (cmdLower === "pan" || cmdLower === "panic") cmdName = "panic";
-  else if (cmdLower === "min" || cmdLower === "minimize") cmdName = "minimize";
-  
-  return { cmdName, args };
+export interface CommandSchema {
+  name: string;
+  category: "tasks" | "actions" | "nav" | "settings" | "default";
+  args: CommandArg[];
+  description: string;
+  shortcuts?: string[];
 }
+
+export interface ParsedToken {
+  type: "command" | "arg";
+  value: string;
+  schema?: CommandArg;
+  category?: CommandSchema["category"];
+}
+
+export interface ParsedCommandResult {
+  schema: CommandSchema;
+  tokens: ParsedToken[];
+  remainingInput: string;
+  nextArg?: CommandArg;
+}
+
+export const commandRegistry: CommandSchema[] = [
+  {
+    name: "panic",
+    category: "tasks",
+    description: "Start or extend panic mode",
+    shortcuts: ["pan", "p"],
+    args: [
+      { name: "time", type: "duration", optional: true },
+      { name: "task", type: "task", optional: true, allowSpaces: true }
+    ]
+  },
+  {
+    name: "timer",
+    category: "tasks",
+    description: "Set an inline countdown timer",
+    args: [
+      { name: "time", type: "duration" }
+    ]
+  },
+  {
+    name: "add",
+    category: "tasks",
+    description: "Add task to queue",
+    args: [
+      { name: "task", type: "task", allowSpaces: true }
+    ]
+  },
+  {
+    name: "todo",
+    category: "tasks",
+    description: "Add subtask todo",
+    shortcuts: ["t"],
+    args: [
+      { name: "text", type: "string", allowSpaces: true }
+    ]
+  },
+  {
+    name: "sidetrack",
+    category: "tasks",
+    description: "Capture jumping idea",
+    shortcuts: ["s"],
+    args: [
+      { name: "text", type: "string", allowSpaces: true }
+    ]
+  },
+  {
+    name: "continue",
+    category: "tasks",
+    description: "Resume a past session",
+    shortcuts: ["con"],
+    args: [
+      { name: "index", type: "index", optional: true }
+    ]
+  },
+  {
+    name: "done",
+    category: "actions",
+    description: "End session",
+    shortcuts: ["d"],
+    args: []
+  },
+  {
+    name: "check",
+    category: "actions",
+    description: "Toggle todo",
+    shortcuts: ["c"],
+    args: [
+      { name: "index", type: "index", optional: true }
+    ]
+  },
+  {
+    name: "remove",
+    category: "actions",
+    description: "Remove todo",
+    shortcuts: ["r"],
+    args: [
+      { name: "index", type: "index" }
+    ]
+  },
+  {
+    name: "remove-queue",
+    category: "actions",
+    description: "Remove queue item",
+    shortcuts: ["rq"],
+    args: [
+      { name: "index", type: "index" }
+    ]
+  },
+  {
+    name: "delete-idea",
+    category: "actions",
+    description: "Delete inbox idea",
+    shortcuts: ["di"],
+    args: [
+      { name: "index", type: "index" }
+    ]
+  },
+  {
+    name: "export",
+    category: "actions",
+    description: "Export sessions",
+    shortcuts: ["e"],
+    args: []
+  },
+  {
+    name: "minimize",
+    category: "actions",
+    description: "Minimize clock modal",
+    shortcuts: ["min"],
+    args: []
+  },
+  {
+    name: "history",
+    category: "nav",
+    description: "Toggle history panel",
+    shortcuts: ["h"],
+    args: []
+  },
+  {
+    name: "inbox",
+    category: "nav",
+    description: "Toggle inbox panel",
+    shortcuts: ["i"],
+    args: []
+  },
+  {
+    name: "tasks",
+    category: "nav",
+    description: "Toggle tasks panel",
+    args: []
+  },
+  {
+    name: "profile",
+    category: "nav",
+    description: "View profile",
+    args: []
+  },
+  {
+    name: "help",
+    category: "nav",
+    description: "Show help",
+    shortcuts: ["?"],
+    args: []
+  },
+  {
+    name: "theme",
+    category: "settings",
+    description: "Set theme",
+    args: [
+      { name: "mode", type: "option", options: ["light", "dark", "system"], optional: true }
+    ]
+  },
+  {
+    name: "zen",
+    category: "settings",
+    description: "Toggle zen mode",
+    shortcuts: ["z"],
+    args: []
+  },
+  {
+    name: "sound",
+    category: "settings",
+    description: "Toggle sound feedback",
+    shortcuts: ["so"],
+    args: []
+  },
+  {
+    name: "revision",
+    category: "nav",
+    description: "View revision history",
+    shortcuts: ["rev"],
+    args: [
+      { name: "index", type: "index", optional: true }
+    ]
+  }
+];
 
 export function parseDuration(durationStr: string): number | null {
   const match = durationStr.trim().match(/^(\+|-)?(\d+)([ms]?)$/i);
@@ -49,28 +217,92 @@ export function parseDuration(durationStr: string): number | null {
   return match[1] === "-" ? -total : total;
 }
 
-export function getCommandSplit(input: string): { commandPart: string; argsPart: string; cmdName: string } | null {
-  if (!input.startsWith("/")) return null;
-  
-  const spaceIdx = input.indexOf(" ");
-  if (spaceIdx === -1) return null;
-  
-  const commandPart = input.substring(0, spaceIdx);
-  const argsPart = input.substring(spaceIdx + 1);
-  
-  // Validate if it's a known command
-  const parsed = parseCommand(commandPart);
-  
-  const validBaseCommands = [
-    "export", "sidetrack", "todo", "check", "remove", "done", 
-    "history", "inbox", "continue", "remove-queue", "delete-idea", 
-    "theme", "zen", "sound", "help", "profile", "add", "revision",
-    "panic", "minimize"
-  ];
-  
-  if (parsed && (validBaseCommands.includes(parsed.cmdName) || parsed.cmdName !== commandPart.substring(1).toLowerCase())) {
-    return { commandPart, argsPart, cmdName: parsed.cmdName };
+export function parseCommand(input: string): { cmdName: string; args: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith("/")) return null;
+
+  const result = getParsedCommand(input);
+  if (!result) {
+    // Fallback for unrecognized commands just to keep old logic somewhat compatible
+    const delimiterIdx = trimmed.indexOf("\x1f") !== -1 ? trimmed.indexOf("\x1f") : trimmed.indexOf(" ");
+    const rawCmd = delimiterIdx === -1 ? trimmed : trimmed.substring(0, delimiterIdx);
+    const args = delimiterIdx === -1 ? "" : trimmed.substring(delimiterIdx + 1).trim();
+    return { cmdName: rawCmd.substring(1).toLowerCase(), args };
   }
 
-  return null;
+  // Reconstruct args string for old-style consumers
+  const args = result.tokens
+    .filter(t => t.type === "arg")
+    .map(t => t.value)
+    .join(" ") + (result.remainingInput ? (result.tokens.some(t => t.type === "arg") ? " " : "") + result.remainingInput : "");
+
+  return { cmdName: result.schema.name, args };
+}
+
+export function getParsedCommand(input: string): ParsedCommandResult | null {
+  if (!input.startsWith("/")) return null;
+
+  const parts = input.substring(1).split("\x1f");
+  
+  // Requirement: Chip only on Enter or Tab (simulated by a trailing \x1f)
+  const isCommandChipped = parts.length > 1 || input.endsWith("\x1f");
+  if (!isCommandChipped) return null;
+
+  const firstPart = parts[0].toLowerCase();
+  const schema = commandRegistry.find(s => s.name === firstPart || s.shortcuts?.includes(firstPart));
+  if (!schema) return null;
+
+  const tokens: ParsedToken[] = [
+    { type: "command", value: schema.name, category: schema.category }
+  ];
+
+  let currentIdx = 1;
+
+  for (let i = 0; i < schema.args.length; i++) {
+    const argSchema = schema.args[i];
+    
+    // Check if we can chip this arg.
+    if (currentIdx < parts.length - 1) {
+      const part = parts[currentIdx];
+      let isValid = false;
+      if (argSchema.type === "duration") {
+        isValid = parseDuration(part) !== null;
+      } else if (argSchema.type === "index") {
+        isValid = !isNaN(parseInt(part, 10));
+      } else if (argSchema.type === "option") {
+        isValid = argSchema.options?.includes(part.toLowerCase()) || false;
+      } else {
+        isValid = part.trim().length > 0;
+      }
+
+      if (isValid) {
+        tokens.push({ type: "arg", value: part, schema: argSchema, category: schema.category });
+        currentIdx++;
+      } else {
+        if (!argSchema.optional) break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  const remainingInput = parts.slice(currentIdx).join("\x1f");
+  const nextArg = schema.args[tokens.length - 1];
+
+  return { schema, tokens, remainingInput, nextArg };
+}
+
+// Deprecated or refactored for the new UI
+export function getCommandSplit(input: string): { commandPart: string; argsPart: string; cmdName: string } | null {
+  const result = getParsedCommand(input);
+  if (!result) return null;
+
+  // This is tricky because the old UI expects ONE commandPart.
+  // We'll return the first token as commandPart for compatibility if needed, 
+  // but the UI should ideally use getParsedCommand directly.
+  return {
+    commandPart: "/" + result.tokens[0].value,
+    argsPart: input.substring(result.tokens[0].value.length + 2), // +2 for / and space
+    cmdName: result.schema.name
+  };
 }

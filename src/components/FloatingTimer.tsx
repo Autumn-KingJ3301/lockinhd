@@ -9,12 +9,15 @@ export const FloatingTimer: React.FC = () => {
   const completeSession = useLockinStore((state) => state.completeSession);
   const setShowPanicModal = useLockinStore((state) => state.setShowPanicModal);
 
-  if (mode !== "active" || !session) return null;
+  if ((mode !== "active" && mode !== "panic") || !session) return null;
 
-  const isPanic = session.panicEndElapsed !== undefined;
-  const remaining = isPanic ? session.panicEndElapsed! - elapsed : 0;
-  const isCritical = isPanic && remaining <= 15;
-  const isOvertime = isPanic && remaining < 0;
+  const isPanic = mode === "panic";
+  const isTimer = mode === "active" && session.timerEndElapsed !== undefined;
+  const remaining = isPanic 
+    ? session.panicEndElapsed! - elapsed 
+    : (isTimer ? session.timerEndElapsed! - elapsed : 0);
+  const isUrgent = (isPanic || isTimer) && remaining <= 15;
+  const isOvertime = (isPanic || isTimer) && remaining < 0;
 
   // Convert elapsed seconds to clock-hand angles
   const totalSeconds = elapsed;
@@ -43,7 +46,7 @@ export const FloatingTimer: React.FC = () => {
 
   return (
     <div
-      className={`floating-timer-box ${isCritical ? "panic-pulse" : ""} ${isOvertime ? "panic-overtime" : ""}`}
+      className={`floating-timer-box ${isUrgent ? "panic-pulse" : ""} ${isOvertime ? "panic-overtime" : ""}`}
       onClick={() => {
         if (isPanic) setShowPanicModal(true);
       }}
@@ -104,9 +107,9 @@ export const FloatingTimer: React.FC = () => {
         </div>
         <div
           className="floating-timer-digital"
-          style={isPanic ? { color: "var(--color-panic)", fontWeight: "bold" } : {}}
+          style={(isPanic || isTimer) ? { color: "var(--color-panic)", fontWeight: "bold" } : {}}
         >
-          {isPanic ? formatPanicTime(remaining) : formatTime(elapsed)}
+          {(isPanic || isTimer) ? formatPanicTime(remaining) : formatTime(elapsed)}
         </div>
       </div>
 

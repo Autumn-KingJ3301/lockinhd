@@ -3,14 +3,15 @@ import { db } from "../utils/firebase";
 import type { IApiService, LockinData } from "./apiService";
 
 class FirebaseApiService implements IApiService {
-  private sanitizeData(data: any): any {
+  private sanitizeData(data: unknown): unknown {
     if (Array.isArray(data)) {
-      return data.map(v => this.sanitizeData(v));
+      return (data as unknown[]).map(v => this.sanitizeData(v));
     } else if (data !== null && typeof data === 'object') {
-      const sanitized: any = {};
-      Object.keys(data).forEach(key => {
-        if (data[key] !== undefined) {
-          sanitized[key] = this.sanitizeData(data[key]);
+      const sanitized: Record<string, unknown> = {};
+      const obj = data as Record<string, unknown>;
+      Object.keys(obj).forEach(key => {
+        if (obj[key] !== undefined) {
+          sanitized[key] = this.sanitizeData(obj[key]);
         }
       });
       return sanitized;

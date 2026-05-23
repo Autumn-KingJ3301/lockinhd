@@ -10,8 +10,13 @@ export interface LockinData {
   idleSidetracks: string[];
   showHistoryPanel: boolean;
   showInboxPanel: boolean;
+  showTasksPanel: boolean;
+  showPanicModal: boolean;
   theme: Theme;
   soundEnabled: boolean;
+  zenMode: boolean;
+  triageSidetracks: string[];
+  activeTriageIndex: number;
 }
 
 export interface IApiService {

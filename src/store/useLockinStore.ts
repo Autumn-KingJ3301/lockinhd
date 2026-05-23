@@ -29,6 +29,7 @@ export interface LockinStoreState {
   showHelp: boolean;
   selectedRevisionIndex: number | null;
   showPanicModal: boolean;
+  showTasksPanel: boolean;
 }
 
 export interface LockinStoreActions {
@@ -50,6 +51,7 @@ export interface LockinStoreActions {
   addToQueue: (taskText: string) => void;
   deleteQueueItem: (id: number) => void;
   startSession: (taskName: string) => void;
+  startPanicSession: (taskName: string, duration: number) => void;
   startNextQueuedTask: () => void;
   exitWrapMode: () => void;
 
@@ -86,6 +88,8 @@ export interface LockinStoreActions {
   setPanicTimer: (seconds: number, isExtension?: boolean) => void;
   cancelPanicTimer: () => void;
   setShowPanicModal: (val: boolean) => void;
+  setShowTasksPanel: (val: boolean) => void;
+  setSessionTimer: (seconds: number, isExtension?: boolean) => void;
 }
 
 export type LockinStore = LockinStoreState & LockinStoreActions;
@@ -102,7 +106,7 @@ export const useLockinStore = create<LockinStore>()(
       wrapData: null,
       elapsed: 0,
       dismissedSuggestions: false,
-      selectedSuggestionIndex: 0,
+      selectedSuggestionIndex: -1,
       toastMsg: null,
       idleSidetracks: [],
       showHistoryPanel: true,
@@ -118,6 +122,7 @@ export const useLockinStore = create<LockinStore>()(
       showHelp: false,
       selectedRevisionIndex: null,
       showPanicModal: true,
+      showTasksPanel: true,
 
       // Actions
       setMode: (mode) => set({ mode }),
@@ -164,12 +169,31 @@ export const useLockinStore = create<LockinStore>()(
             task: taskName, 
             startTime: time, 
             notes: [], 
-            revision: 1,
-            panicLimit: 300,
-            panicEndElapsed: 300
+            revision: 1
           },
           elapsed: 0,
           mode: "active",
+          wrapData: null,
+          input: "",
+          triageSidetracks: [],
+          activeTriageIndex: 0,
+          showPanicModal: false,
+        });
+      },
+      startPanicSession: (taskName, duration) => {
+        const time = Date.now();
+        set({
+          session: { 
+            id: time, 
+            task: taskName, 
+            startTime: time, 
+            notes: [], 
+            revision: 1,
+            panicLimit: duration,
+            panicEndElapsed: duration
+          },
+          elapsed: 0,
+          mode: "panic",
           wrapData: null,
           input: "",
           triageSidetracks: [],
@@ -189,16 +213,14 @@ export const useLockinStore = create<LockinStore>()(
               task: nextTask.text, 
               startTime: time, 
               notes: [], 
-              revision: 1,
-              panicLimit: 300,
-              panicEndElapsed: 300
+              revision: 1
             },
             elapsed: 0,
             mode: "active",
             wrapData: null,
             triageSidetracks: [],
             activeTriageIndex: 0,
-            showPanicModal: true,
+            showPanicModal: false,
           });
         }
       },
@@ -233,9 +255,9 @@ export const useLockinStore = create<LockinStore>()(
           const sessionSidetracks = session.sidetracks || [];
 
           if (soundEnabled) {
-            try { playChimeSound(); } catch (e) {}
+            try { playChimeSound(); } catch (e) { console.warn("Chime sound play failed", e); }
           }
-          try { triggerConfetti(); } catch (e) {}
+          try { triggerConfetti(); } catch (e) { console.warn("Confetti trigger failed", e); }
 
           set((state) => {
             const exists = state.sessions.some((s) => (s.id || s.startTime) === sessionId);
@@ -290,7 +312,7 @@ export const useLockinStore = create<LockinStore>()(
             set({ session: { ...session, todos: updated } });
             // Play pop sound when marking as complete (not when unchecking)
             if (!wasCompleted && soundEnabled) {
-              try { playPopSound(); } catch (e) {}
+              try { playPopSound(); } catch (e) { console.warn("Pop sound play failed", e); }
             }
           }
         }
@@ -398,8 +420,8 @@ export const useLockinStore = create<LockinStore>()(
         if (activeTriageIndex >= triageSidetracks.length) return {};
 
         const trackText = triageSidetracks[activeTriageIndex];
-        let updatedQueue = [...queue];
-        let updatedIdleSidetracks = [...idleSidetracks];
+        const updatedQueue = [...queue];
+        const updatedIdleSidetracks = [...idleSidetracks];
 
         if (action === "queue") {
           updatedQueue.push({ id: Date.now(), text: trackText });
@@ -451,6 +473,20 @@ export const useLockinStore = create<LockinStore>()(
         return {};
       }),
       setShowPanicModal: (showPanicModal) => set({ showPanicModal }),
+      setShowTasksPanel: (showTasksPanel) => set({ showTasksPanel }),
+      setSessionTimer: (seconds, isExtension = false) => set((state) => {
+        if (state.session) {
+          const currentEnd = state.session.timerEndElapsed || state.elapsed;
+          const newEnd = isExtension ? currentEnd + seconds : state.elapsed + seconds;
+          return {
+            session: {
+              ...state.session,
+              timerEndElapsed: newEnd
+            }
+          };
+        }
+        return {};
+      }),
     }),
     {
       name: "lockin-store-state",
@@ -463,9 +499,13 @@ export const useLockinStore = create<LockinStore>()(
         idleSidetracks: state.idleSidetracks,
         showHistoryPanel: state.showHistoryPanel,
         showInboxPanel: state.showInboxPanel,
+        showTasksPanel: state.showTasksPanel,
         theme: state.theme,
         soundEnabled: state.soundEnabled,
         showPanicModal: state.showPanicModal,
+        zenMode: state.zenMode,
+        triageSidetracks: state.triageSidetracks,
+        activeTriageIndex: state.activeTriageIndex,
       }),
     }
   )

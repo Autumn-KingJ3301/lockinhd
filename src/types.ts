@@ -34,6 +34,7 @@ export type Session = {
   revisionHistory?: SessionRevision[];
   panicEndElapsed?: number; // The elapsed second value at which the panic timer expires
   panicLimit?: number; // The total limit in seconds set for panic (e.g., 300)
+  timerEndElapsed?: number; // The elapsed second value at which the in-session timer expires
 };
 
 export type QueueItem = {
@@ -41,5 +42,5 @@ export type QueueItem = {
   text: string;
 };
 
-export type AppMode = "idle" | "active" | "wrap";
+export type AppMode = "idle" | "active" | "panic" | "wrap";
 export type Theme = "system" | "light" | "dark";

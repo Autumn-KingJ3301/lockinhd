@@ -3,7 +3,7 @@ import { useLockinStore } from "../store/useLockinStore";
 import { SuggestionsOverlay } from "./SuggestionsOverlay";
 import { formatTime, formatTimestamp, formatSummaryDuration, formatPanicTime } from "../utils/timeFormatters";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
-import { getCommandSplit } from "../utils/commandParser";
+import { getParsedCommand } from "../utils/commandParser";
 
 type CoreLockinProps = {
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -39,8 +39,6 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   const selectedRevisionIndex = useLockinStore((state) => state.selectedRevisionIndex);
 
   // Actions
-  const startSession = useLockinStore((state) => state.startSession);
-  const deleteQueueItem = useLockinStore((state) => state.deleteQueueItem);
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
   const setToastMsg = useLockinStore((state) => state.setToastMsg);
   const setShowHelp = useLockinStore((state) => state.setShowHelp);
@@ -73,15 +71,9 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   const filteredSuggestions = filterSuggestions(commandSuggestions, input);
   const showSuggestions = filteredSuggestions.length > 0 && !dismissedSuggestions;
 
-  const handleQueueItemClick = (item: { id: number; text: string }) => {
-    deleteQueueItem(item.id);
-    startSession(item.text);
-  };
 
-  const handleDeleteQueueItem = (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    deleteQueueItem(id);
-  };
+
+  if (mode === "panic") return null;
 
   return (
     <div className={`app-container${zenMode ? " zen-active" : ""}`}>
@@ -104,12 +96,12 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
           {mode === "idle" && <div className="status-badge">idle</div>}
 
           {mode === "active" && (
-            <div className={`status-badge active ${session?.panicEndElapsed !== undefined ? "panic-active-badge" : ""}`}>
-              {session?.panicEndElapsed !== undefined ? (
+            <div className={`status-badge active ${session?.timerEndElapsed !== undefined ? "panic-active-badge" : ""}`}>
+              {session?.timerEndElapsed !== undefined ? (
                 <>
-                  <span className={`pulse-dot ${session.panicEndElapsed - elapsed <= 15 ? "panic-critical-pulse" : ""}`}></span>
+                  <span className={`pulse-dot ${session.timerEndElapsed - elapsed <= 15 ? "panic-critical-pulse" : ""}`}></span>
                   <span style={{ color: "var(--color-panic)", fontWeight: "bold" }}>
-                    ⏳ {formatPanicTime(session.panicEndElapsed - elapsed)}
+                    ⏳ {formatPanicTime(session.timerEndElapsed - elapsed)}
                   </span>
                 </>
               ) : (
@@ -230,13 +222,14 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
               <div className="help-section">
                 <div className="help-section-label">Sessions</div>
                 <div className="help-row"><kbd>/done</kbd><kbd>/d</kbd><span>End current session</span></div>
+                <div className="help-row"><kbd>/timer [time]</kbd><span>Set inline session timer</span></div>
                 <div className="help-row"><kbd>/continue</kbd><kbd>/con</kbd><span>Resume last session</span></div>
-                <div className="help-row"><kbd>/continue 2</kbd><span>Resume Nth-from-last session</span></div>
                 <div className="help-row"><kbd>/rev [n]</kbd><span>View data for revision n (history only)</span></div>
               </div>
               <div className="help-section">
-                <div className="help-section-label">Task Queue</div>
+                <div className="help-section-label">Task Queue & Panic</div>
                 <div className="help-row"><kbd>/add [task]</kbd><span>Add task to queue</span></div>
+                <div className="help-row"><kbd>/panic [time] [task]</kbd><span>Start chore in panic mode</span></div>
                 <div className="help-row"><kbd>/rq [n]</kbd><span>Remove queue item at index n</span></div>
                 <div className="help-row"><span className="help-tip">Tab</span><span>Autofill first queued task</span></div>
               </div>
@@ -260,6 +253,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
               </div>
               <div className="help-section">
                 <div className="help-section-label">Panels &amp; Export</div>
+                <div className="help-row"><kbd>/tasks</kbd><span>Toggle global tasks panel</span></div>
                 <div className="help-row"><kbd>/history</kbd><kbd>/h</kbd><span>Toggle history panel</span></div>
                 <div className="help-row"><kbd>/inbox</kbd><kbd>/i</kbd><span>Toggle inbox panel</span></div>
                 <div className="help-row"><kbd>/theme [light|dark|system]</kbd><span>Change theme</span></div>
@@ -267,6 +261,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
               </div>
               <div className="help-section">
                 <div className="help-section-label">Keyboard Shortcuts</div>
+                <div className="help-row"><span className="help-tip">Alt+T</span><span>Toggle tasks panel</span></div>
                 <div className="help-row"><span className="help-tip">Alt+H</span><span>Toggle history panel</span></div>
                 <div className="help-row"><span className="help-tip">Alt+I</span><span>Toggle inbox panel</span></div>
                 <div className="help-row"><span className="help-tip">Esc</span><span>Close this help panel</span></div>
@@ -277,44 +272,11 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
 
         {mode === "idle" && !selectedHistorySession && (
           <div className="mode-container" key="idle">
-            {queue.length > 0 ? (
-              <>
-                <div className="section-label">UP NEXT</div>
-                <div className="queue-list">
-                  {queue.map((item, idx) => {
-                    const isFirst = idx === 0;
-                    return (
-                      <div
-                        key={item.id}
-                        className={`queue-item ${isFirst ? "first-item" : ""}`}
-                        onClick={() => handleQueueItemClick(item)}
-                      >
-                        <div className="queue-item-left">
-                          <span className="queue-index">{idx + 1}</span>
-                          <span className="queue-text">{item.text}</span>
-                        </div>
-                        <div className="queue-item-actions">
-                          {isFirst && <span className="badge badge-start">↵ start</span>}
-                          <button
-                            className="delete-btn"
-                            onClick={(e) => handleDeleteQueueItem(e, item.id)}
-                            title="Remove task"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            ) : (
-              <div className="empty-state">
-                No active session.
-                <br />
-                Type above to lock in on a task, or `/add [task]` to queue it.
-              </div>
-            )}
+            <div className="empty-state">
+              No active session.
+              <br />
+              Type above to lock in on a task, or `/add [task]` to queue it.
+            </div>
           </div>
         )}
 
@@ -329,15 +291,15 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
             </div>
             <div className="task-name-large">{session.task}</div>
 
-            {/* Panic Countdown Banner */}
-            {session.panicEndElapsed !== undefined && (
-              <div className={`panic-banner ${session.panicEndElapsed - elapsed <= 15 ? "panic-critical" : ""}`}>
-                <span className="panic-banner-icon">🚨</span>
+            {/* Session Timer Banner */}
+            {session.timerEndElapsed !== undefined && (
+              <div className={`panic-banner ${session.timerEndElapsed - elapsed <= 15 ? "panic-critical" : ""}`}>
+                <span className="panic-banner-icon">⏳</span>
                 <span className="panic-banner-text">
-                  {session.panicEndElapsed - elapsed > 0 ? (
-                    <>Panic countdown: <strong>{formatPanicTime(session.panicEndElapsed - elapsed)}</strong></>
+                  {session.timerEndElapsed - elapsed > 0 ? (
+                    <>Session timer: <strong>{formatPanicTime(session.timerEndElapsed - elapsed)}</strong></>
                   ) : (
-                    <>Panic expired! Overtime: <strong style={{ color: "var(--color-panic)" }}>{formatPanicTime(session.panicEndElapsed - elapsed)}</strong></>
+                    <>Timer expired! Overtime: <strong style={{ color: "var(--color-panic)" }}>{formatPanicTime(session.timerEndElapsed - elapsed)}</strong></>
                   )}
                 </span>
               </div>
@@ -499,36 +461,31 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
         )}
         <div className="input-wrapper" onClick={() => inputRef.current?.focus()}>
           {(() => {
-            const split = getCommandSplit(input);
-            if (split) {
-              const category = (() => {
-                const tasks = ["add", "sidetrack", "todo", "continue", "remove-queue", "delete-idea"];
-                const actions = ["done", "check", "remove", "export"];
-                const nav = ["history", "inbox", "profile", "help"];
-                const settings = ["theme", "zen", "sound"];
-                
-                if (tasks.includes(split.cmdName)) return "tasks";
-                if (actions.includes(split.cmdName)) return "actions";
-                if (nav.includes(split.cmdName)) return "nav";
-                if (settings.includes(split.cmdName)) return "settings";
-                return "default";
-              })();
-
+            const parsed = getParsedCommand(input);
+            if (parsed) {
               return (
                 <>
-                  <div className={`command-chip chip-${category}`}>
-                    {split.commandPart.substring(1)}
-                  </div>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    className="command-input"
-                    value={split.argsPart}
-                    onChange={(e) => setInput(split.commandPart + " " + e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={placeholderText}
-                    autoFocus
-                  />
+                  {parsed.tokens.map((token, idx) => (
+                    <div 
+                      key={idx} 
+                      className={`command-chip chip-${token.category || (token.schema ? "default" : "tasks")}`}
+                    >
+                      {token.value}
+                    </div>
+                  ))}
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      className="command-input"
+                      value={parsed.remainingInput}
+                      onChange={(e) => {
+                        const base = parsed.tokens.map(t => (t.type === "command" ? "/" : "") + t.value).join("\x1f");
+                        setInput(base + "\x1f" + e.target.value);
+                      }}
+                      onKeyDown={handleKeyDown}
+                      placeholder={parsed.nextArg ? `[${parsed.nextArg.name}]` : placeholderText}
+                      autoFocus
+                    />
                 </>
               );
             }
