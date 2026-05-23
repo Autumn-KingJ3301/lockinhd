@@ -1,4 +1,4 @@
-export function triggerConfetti() {
+export function triggerConfetti(isMega = false) {
   if (typeof document === "undefined") return;
 
   const colors = [
@@ -10,7 +10,7 @@ export function triggerConfetti() {
     "#ef4444", // Red
   ];
 
-  const particleCount = 40;
+  const particleCount = isMega ? 150 : 40;
   const container = document.createElement("div");
   container.style.position = "fixed";
   container.style.top = "0";
@@ -30,13 +30,17 @@ export function triggerConfetti() {
     el.className = "confetti-particle";
 
     const color = colors[Math.floor(Math.random() * colors.length)];
-    const size = Math.floor(Math.random() * 8) + 6; // 6px to 14px
+    const size = isMega 
+      ? Math.floor(Math.random() * 10) + 6 // 6px to 16px
+      : Math.floor(Math.random() * 8) + 6; // 6px to 14px
     
     // Spread in all directions
     const angle = Math.random() * Math.PI * 2;
-    const distance = Math.floor(Math.random() * 150) + 50; // 50px to 200px
+    const distance = isMega
+      ? Math.floor(Math.random() * 320) + 80 // 80px to 400px
+      : Math.floor(Math.random() * 150) + 50; // 50px to 200px
     const xDest = Math.cos(angle) * distance;
-    const yDest = Math.sin(angle) * distance + 80; // gravity pulling it down
+    const yDest = Math.sin(angle) * distance + (isMega ? 120 : 80); // gravity pulling it down
 
     const rotation = Math.floor(Math.random() * 360) + 180; // degrees rotation
 
@@ -53,7 +57,10 @@ export function triggerConfetti() {
     el.style.setProperty("--r", `${rotation}deg`);
 
     // Animation: custom keyframes defined in CSS
-    el.style.animation = `confettiFall ${Math.random() * 0.5 + 0.8}s cubic-bezier(0.1, 1, 0.1, 1) forwards`;
+    const duration = isMega
+      ? Math.random() * 0.8 + 1.2 // 1.2s to 2.0s
+      : Math.random() * 0.5 + 0.8; // 0.8s to 1.3s
+    el.style.animation = `confettiFall ${duration}s cubic-bezier(0.1, 1, 0.1, 1) forwards`;
 
     container.appendChild(el);
   }
@@ -61,5 +68,5 @@ export function triggerConfetti() {
   // Cleanup container
   setTimeout(() => {
     container.remove();
-  }, 1500);
+  }, isMega ? 2500 : 1500);
 }

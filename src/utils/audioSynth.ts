@@ -129,3 +129,72 @@ export function playPanicExpiredAlarm() {
   playBeep(now + 0.2);
 }
 
+export function playTransitionWarningSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+
+  const now = ctx.currentTime;
+  const playNote = (freq: number, startTime: number, duration: number) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, startTime);
+
+    gain.gain.setValueAtTime(0.05, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  };
+
+  // Gentle C6 -> G5 soft chime warning
+  playNote(1046.50, now, 0.4);
+  playNote(783.99, now + 0.15, 0.5);
+}
+
+export function playMegaChimeSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+
+  const now = ctx.currentTime;
+  const playNote = (freq: number, startTime: number, duration: number, type: OscillatorType = "triangle", gainVal = 0.08) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, startTime);
+
+    gain.gain.setValueAtTime(gainVal, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(startTime);
+    osc.stop(startTime + duration);
+  };
+
+  // Play a glorious cascading mega arpeggio
+  // C4, E4, G4, C5, E5, G5, C6, E6, G6, C7
+  const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98, 2093.00];
+  notes.forEach((freq, idx) => {
+    playNote(freq, now + idx * 0.06, 0.5, "sine", 0.06);
+    // Add a secondary subtle triangle note for warmth
+    if (idx % 2 === 0) {
+      playNote(freq * 1.5, now + idx * 0.06 + 0.02, 0.4, "triangle", 0.02);
+    }
+  });
+}
+

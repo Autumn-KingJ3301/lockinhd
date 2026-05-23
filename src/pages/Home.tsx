@@ -13,8 +13,10 @@ import { TasksPanel } from "../components/TasksPanel";
 import { CoreLockin } from "../components/CoreLockin";
 import { FloatingTimer } from "../components/FloatingTimer";
 import { PanicModal } from "../components/PanicModal";
+import { AuroraCanvas } from "../components/AuroraCanvas";
+import { ArchivePanel, ArchiveConfirmBar, StashNotifBar } from "../components/ArchivePanel";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
-import { playTickSound, playPanicExpiredAlarm } from "../utils/audioSynth";
+import { playTickSound, playPanicExpiredAlarm, playTransitionWarningSound } from "../utils/audioSynth";
 import { formatSummaryDuration } from "../utils/timeFormatters";
 
 export const Home = () => {
@@ -46,6 +48,7 @@ export const Home = () => {
   const selectedHistorySession = useLockinStore((state) => state.selectedHistorySession);
   const showPanicModal = useLockinStore((state) => state.showPanicModal);
   const elapsed = useLockinStore((state) => state.elapsed);
+  const wrapData = useLockinStore((state) => state.wrapData);
 
   // Select store actions
   const tickElapsed = useLockinStore((state) => state.tickElapsed);
@@ -53,8 +56,6 @@ export const Home = () => {
   const setIsSystemDark = useLockinStore((state) => state.setIsSystemDark);
   const setToastMsg = useLockinStore((state) => state.setToastMsg);
   const addToQueue = useLockinStore((state) => state.addToQueue);
-  const startSession = useLockinStore((state) => state.startSession);
-  const startNextQueuedTask = useLockinStore((state) => state.startNextQueuedTask);
   const completeSession = useLockinStore((state) => state.completeSession);
   const addNote = useLockinStore((state) => state.addNote);
   const addTodo = useLockinStore((state) => state.addTodo);
@@ -68,7 +69,6 @@ export const Home = () => {
   const setShowInboxPanel = useLockinStore((state) => state.setShowInboxPanel);
   const setShowTasksPanel = useLockinStore((state) => state.setShowTasksPanel);
   const setTheme = useLockinStore((state) => state.setTheme);
-  const continueSession = useLockinStore((state) => state.continueSession);
   const deleteQueueItem = useLockinStore((state) => state.deleteQueueItem);
   const deleteIdleSidetrack = useLockinStore((state) => state.deleteIdleSidetrack);
   const toggleZenMode = useLockinStore((state) => state.toggleZenMode);
@@ -82,8 +82,31 @@ export const Home = () => {
   const setSelectedRevisionIndex = useLockinStore((state) => state.setSelectedRevisionIndex);
   const setPanicTimer = useLockinStore((state) => state.setPanicTimer);
   const setSessionTimer = useLockinStore((state) => state.setSessionTimer);
-  const startPanicSession = useLockinStore((state) => state.startPanicSession);
   const setShowPanicModal = useLockinStore((state) => state.setShowPanicModal);
+  const setupStep = useLockinStore((state) => state.setupStep);
+  const setupTaskName = useLockinStore((state) => state.setupTaskName);
+  const initiateSessionSetup = useLockinStore((state) => state.initiateSessionSetup);
+  const submitSetupEstimate = useLockinStore((state) => state.submitSetupEstimate);
+  const submitSetupEnergy = useLockinStore((state) => state.submitSetupEnergy);
+  const cancelSessionSetup = useLockinStore((state) => state.cancelSessionSetup);
+  const showArchivesPanel = useLockinStore((state) => state.showArchivesPanel);
+  const toggleArchivesPanel = useLockinStore((state) => state.toggleArchivesPanel);
+  const setArchiveConfirmPending = useLockinStore((state) => state.setArchiveConfirmPending);
+  const createArchive = useLockinStore((state) => state.createArchive);
+  const stash = useLockinStore((state) => state.stash);
+  const popStash = useLockinStore((state) => state.popStash);
+  const discardStash = useLockinStore((state) => state.discardStash);
+  const closeArchive = useLockinStore((state) => state.closeArchive);
+  const activeArchiveId = useLockinStore((state) => state.activeArchiveId);
+
+  const energyRating =
+    ((mode === "active" || mode === "panic") && session)
+      ? (session.energyRating ?? 3)
+      : ((mode === "wrap" && wrapData) ? (wrapData.energyRating ?? 3) : (
+        setupStep !== "idle"
+          ? (setupStep === "energy" && /^[1-5]$/.test(input.trim()) ? parseInt(input.trim(), 10) : 3)
+          : null
+      ));
 
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
@@ -156,7 +179,7 @@ export const Home = () => {
         const active = document.activeElement;
         const isInput = active?.tagName === "INPUT" || active?.tagName === "TEXTAREA";
         const isButton = active?.tagName === "BUTTON";
-        
+
         if (!isInput && !isButton) {
           e.preventDefault();
           inputRef.current?.focus();
@@ -201,28 +224,33 @@ export const Home = () => {
   useEffect(() => {
     const isPanic = mode === "panic" && session?.panicEndElapsed !== undefined;
     const isTimer = mode === "active" && session?.timerEndElapsed !== undefined;
-    
+
     if (isPanic || isTimer) {
       const endElapsed = isPanic ? session!.panicEndElapsed! : session!.timerEndElapsed!;
       const remaining = endElapsed - elapsed;
+      if (remaining === 120) {
+        if (soundEnabled) {
+          try { playTransitionWarningSound(); } catch (e) { }
+        }
+      }
       if (remaining === 0) {
         if (soundEnabled) {
-          try { playPanicExpiredAlarm(); } catch (e) {}
+          try { playPanicExpiredAlarm(); } catch (e) { }
         }
       } else if (remaining < 0) {
         // Overtime beep alarm every 10 seconds
         if (remaining % 10 === 0 && soundEnabled) {
-          try { playPanicExpiredAlarm(); } catch (e) {}
+          try { playPanicExpiredAlarm(); } catch (e) { }
         }
       } else if (remaining <= 15) {
         // Play click tick every second for critical urgency
         if (soundEnabled) {
-          try { playTickSound(); } catch (e) {}
+          try { playTickSound(); } catch (e) { }
         }
       } else if (remaining <= 30) {
         // Play click tick every 3 seconds for mild warning
         if (remaining % 3 === 0 && soundEnabled) {
-          try { playTickSound(); } catch (e) {}
+          try { playTickSound(); } catch (e) { }
         }
       }
     }
@@ -250,6 +278,23 @@ export const Home = () => {
 
   // Keyboard Event Handlers
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (setupStep !== "idle") {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        cancelSessionSetup();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (setupStep === "estimate") {
+          submitSetupEstimate(input);
+        } else if (setupStep === "energy") {
+          submitSetupEnergy(input);
+        }
+        return;
+      }
+    }
+
     // Wrap-mode triage: single-key shortcuts when triaging sidetracks
     const triageActive = mode === "wrap" && triageSidetracks.length > 0 && activeTriageIndex < triageSidetracks.length;
     if (triageActive && !input) {
@@ -389,7 +434,7 @@ export const Home = () => {
     const trimmedInput = targetInput.trim();
     if (!trimmedInput.startsWith("/")) {
       if (mode === "idle") {
-        if (trimmedInput) startSession(trimmedInput);
+        if (trimmedInput) initiateSessionSetup(trimmedInput);
       } else if (mode === "active" || mode === "panic") {
         if (trimmedInput) {
           addNote(trimmedInput);
@@ -401,7 +446,11 @@ export const Home = () => {
           processCurrentTriage("keep");
           setInput("");
         } else if (trimmedInput === "") {
-          if (queue.length > 0) startNextQueuedTask();
+          if (queue.length > 0) {
+            const nextTask = queue[0];
+            deleteQueueItem(nextTask.id);
+            initiateSessionSetup(nextTask.text);
+          }
           else exitWrapMode();
         } else {
           setResumeCueToLastSession(trimmedInput);
@@ -439,7 +488,7 @@ export const Home = () => {
       // We have text typed but not chipped. 
       // If it's the LAST argument, we can execute immediately.
       const isLastArg = tokens.length - 1 === schema.args.length - 1;
-      
+
       if (isLastArg) {
         // Build tokens with the final argument
         const finalTokens = [...tokens, { type: "arg", value: remainingInput.trim(), schema: nextArg, category: schema.category }];
@@ -471,8 +520,7 @@ export const Home = () => {
           setToastMsg("Specify a task: `/panic [time] [task]`");
           return;
         } else {
-          startPanicSession(taskName, seconds);
-          setToastMsg(`Started "${taskName}" in PANIC MODE!`);
+          initiateSessionSetup(taskName, { panicLimit: seconds });
         }
       } else if (mode === "panic") {
         const hasSign = input.includes("+") || input.includes("-");
@@ -538,6 +586,64 @@ export const Home = () => {
 
     if (cmdName === "profile") {
       navigate("/profile");
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "archive") {
+      const workspaceEmpty =
+        sessions.length === 0 && queue.length === 0 && idleSidetracks.length === 0;
+      if (workspaceEmpty) {
+        setToastMsg("Workspace is already empty — nothing to archive.");
+      } else {
+        // args contains optional label
+        if (args.trim()) {
+          // Immediate archive with label (no confirm needed when label provided)
+          createArchive(args.trim());
+          setToastMsg(`Workspace archived as "${args.trim()}" ✓`);
+        } else {
+          setArchiveConfirmPending(true);
+        }
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "archives") {
+      toggleArchivesPanel();
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "stash-pop") {
+      if (!stash) {
+        setToastMsg("No stash to pop.");
+      } else {
+        popStash();
+        setToastMsg("Stash popped!");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "stash-discard") {
+      if (!stash) {
+        setToastMsg("No stash to discard.");
+      } else {
+        discardStash();
+        setToastMsg("Stash discarded.");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "close-archive") {
+      if (!activeArchiveId) {
+        setToastMsg("No active archive being viewed.");
+      } else {
+        closeArchive();
+        setToastMsg("Archive closed.");
+      }
       setInput("");
       return;
     }
@@ -628,13 +734,13 @@ export const Home = () => {
         return;
       }
       if (!args) {
-        continueSession(sessions[sessions.length - 1]);
-        setToastMsg("Resumed last focus session.");
+        initiateSessionSetup(sessions[sessions.length - 1].task, { continueSession: sessions[sessions.length - 1] });
+        setToastMsg("Resuming last focus session...");
       } else {
         const index = parseInt(args, 10);
         if (!isNaN(index) && index >= 1 && index <= sessions.length) {
-          continueSession(sessions[sessions.length - index]);
-          setToastMsg(`Resumed session: ${sessions[sessions.length - index].task}`);
+          initiateSessionSetup(sessions[sessions.length - index].task, { continueSession: sessions[sessions.length - index] });
+          setToastMsg(`Resuming session: ${sessions[sessions.length - index].task}...`);
         } else {
           setToastMsg(`Invalid session index. Provide 1 to ${sessions.length}.`);
         }
@@ -724,7 +830,15 @@ export const Home = () => {
   let placeholderText = "";
   let hintText = "";
 
-  if (mode === "idle") {
+  if (setupStep !== "idle") {
+    if (setupStep === "estimate") {
+      placeholderText = "estimate duration: e.g. 25m, 1h, or skip with enter";
+      hintText = `estimating duration for "${setupTaskName}"  ·  type time + ↵  ·  ↵ to skip  ·  esc to cancel`;
+    } else if (setupStep === "energy") {
+      placeholderText = "energy check-in: type 1 (low) to 5 (high), or skip";
+      hintText = `vibe check (1-5) + ↵  ·  ↵ to skip  ·  esc to cancel`;
+    }
+  } else if (mode === "idle") {
     if (queue.length > 0) {
       placeholderText = "↵ to start · tab to fill queue item";
     } else {
@@ -759,10 +873,26 @@ export const Home = () => {
     );
   }
 
+
   return (
     <>
+      <AuroraCanvas
+        energyRating={energyRating}
+        blurAmount={20}
+        baseOpacity={0.32}
+        yOffset={-150}
+        heightMultiplier={3.0}
+        waveSpeedMultiplier={1.9}
+        raySpeedMultiplier={1}
+      />
       {/* Utility Toolbar */}
       <Toolbar />
+
+      {/* Archive confirm floating bar */}
+      <ArchiveConfirmBar />
+
+      {/* Stash notification bar */}
+      <StashNotifBar />
 
       <div className={`workspace-wrapper${zenMode ? " zen-layout" : ""}`}>
         {/* Left Column: History Panel */}
@@ -791,6 +921,13 @@ export const Home = () => {
         {showInboxPanel && (
           <div className={`panel-slide${zenMode ? " zen-hidden" : ""}`}>
             <InboxPanel />
+          </div>
+        )}
+
+        {/* Archives Panel */}
+        {showArchivesPanel && (
+          <div className={`panel-slide${zenMode ? " zen-hidden" : ""}`}>
+            <ArchivePanel />
           </div>
         )}
       </div>

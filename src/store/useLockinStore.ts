@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme } from "../types";
-import { playPopSound, playChimeSound } from "../utils/audioSynth";
+import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend } from "../types";
+import { playPopSound, playChimeSound, playMegaChimeSound } from "../utils/audioSynth";
 import { triggerConfetti } from "../utils/confetti";
+import { parseDuration } from "../utils/commandParser";
 
 export interface LockinStoreState {
   mode: AppMode;
@@ -30,6 +31,21 @@ export interface LockinStoreState {
   selectedRevisionIndex: number | null;
   showPanicModal: boolean;
   showTasksPanel: boolean;
+  setupTaskName: string | null;
+  setupPanicLimit: number | null;
+  setupStep: "idle" | "estimate" | "energy";
+  setupEstimatedDuration: number | null;
+  setupContinueSessionData: Session | null;
+  // Archive & stash
+  archives: Archive[];
+  stash: StashData | null;
+  archivesLoading: boolean;
+  showArchivesPanel: boolean;
+  archiveConfirmPending: boolean;
+  // Pending trend: cleared after cloud sync writes it
+  pendingTrend: SessionTrend | null;
+  activeArchiveId: string | null;
+  activeArchiveLabel: string | null;
 }
 
 export interface LockinStoreActions {
@@ -50,8 +66,8 @@ export interface LockinStoreActions {
   // Queued Tasks
   addToQueue: (taskText: string) => void;
   deleteQueueItem: (id: number) => void;
-  startSession: (taskName: string) => void;
-  startPanicSession: (taskName: string, duration: number) => void;
+  startSession: (taskName: string, estimatedDuration?: number, energyRating?: number) => void;
+  startPanicSession: (taskName: string, duration: number, estimatedDuration?: number, energyRating?: number) => void;
   startNextQueuedTask: () => void;
   exitWrapMode: () => void;
 
@@ -67,7 +83,7 @@ export interface LockinStoreActions {
   deleteIdleSidetrack: (index: number) => void;
   addIdleSidetrackDirect: () => void; // from quick capture input
   startSessionFromSidetrack: (index: number) => void;
-  continueSession: (pastSession: Session) => void;
+  continueSession: (pastSession: Session, estimatedDuration?: number, energyRating?: number) => void;
 
   // Suggestions & Toasts
   setDismissedSuggestions: (val: boolean) => void;
@@ -90,6 +106,23 @@ export interface LockinStoreActions {
   setShowPanicModal: (val: boolean) => void;
   setShowTasksPanel: (val: boolean) => void;
   setSessionTimer: (seconds: number, isExtension?: boolean) => void;
+  initiateSessionSetup: (taskName: string, options?: { panicLimit?: number; continueSession?: Session }) => void;
+  submitSetupEstimate: (estimateStr: string) => void;
+  submitSetupEnergy: (energyStr: string) => void;
+  cancelSessionSetup: () => void;
+  // Archive & stash actions
+  createArchive: (label?: string) => Archive;
+  setArchives: (archives: Archive[]) => void;
+  setArchivesLoading: (val: boolean) => void;
+  restoreArchive: (archiveId: string) => { stashCreated: boolean };
+  popStash: () => void;
+  discardStash: () => void;
+  setStash: (stash: StashData | null) => void;
+  clearPendingTrend: () => void;
+  setShowArchivesPanel: (val: boolean) => void;
+  toggleArchivesPanel: () => void;
+  setArchiveConfirmPending: (val: boolean) => void;
+  closeArchive: () => void;
 }
 
 export type LockinStore = LockinStoreState & LockinStoreActions;
@@ -123,6 +156,20 @@ export const useLockinStore = create<LockinStore>()(
       selectedRevisionIndex: null,
       showPanicModal: true,
       showTasksPanel: true,
+      setupTaskName: null,
+      setupPanicLimit: null,
+      setupStep: "idle",
+      setupEstimatedDuration: null,
+      setupContinueSessionData: null,
+      // Archive & stash defaults
+      archives: [],
+      stash: null,
+      archivesLoading: false,
+      showArchivesPanel: false,
+      archiveConfirmPending: false,
+      pendingTrend: null,
+      activeArchiveId: null,
+      activeArchiveLabel: null,
 
       // Actions
       setMode: (mode) => set({ mode }),
@@ -161,7 +208,7 @@ export const useLockinStore = create<LockinStore>()(
         set((state) => ({
           queue: state.queue.filter((q) => q.id !== id),
         })),
-      startSession: (taskName) => {
+      startSession: (taskName, estimatedDuration, energyRating) => {
         const time = Date.now();
         set({
           session: { 
@@ -169,7 +216,9 @@ export const useLockinStore = create<LockinStore>()(
             task: taskName, 
             startTime: time, 
             notes: [], 
-            revision: 1
+            revision: 1,
+            estimatedDuration,
+            energyRating
           },
           elapsed: 0,
           mode: "active",
@@ -178,9 +227,11 @@ export const useLockinStore = create<LockinStore>()(
           triageSidetracks: [],
           activeTriageIndex: 0,
           showPanicModal: false,
+          activeArchiveId: null,
+          activeArchiveLabel: null,
         });
       },
-      startPanicSession: (taskName, duration) => {
+      startPanicSession: (taskName, duration, estimatedDuration, energyRating) => {
         const time = Date.now();
         set({
           session: { 
@@ -190,7 +241,9 @@ export const useLockinStore = create<LockinStore>()(
             notes: [], 
             revision: 1,
             panicLimit: duration,
-            panicEndElapsed: duration
+            panicEndElapsed: duration,
+            estimatedDuration: estimatedDuration ?? duration,
+            energyRating
           },
           elapsed: 0,
           mode: "panic",
@@ -199,6 +252,8 @@ export const useLockinStore = create<LockinStore>()(
           triageSidetracks: [],
           activeTriageIndex: 0,
           showPanicModal: true,
+          activeArchiveId: null,
+          activeArchiveLabel: null,
         });
       },
       startNextQueuedTask: () => {
@@ -221,6 +276,8 @@ export const useLockinStore = create<LockinStore>()(
             triageSidetracks: [],
             activeTriageIndex: 0,
             showPanicModal: false,
+            activeArchiveId: null,
+            activeArchiveLabel: null,
           });
         }
       },
@@ -241,6 +298,8 @@ export const useLockinStore = create<LockinStore>()(
             notes: [...session.notes],
             todos: [...(session.todos || [])],
             sidetracks: [...(session.sidetracks || [])],
+            estimatedDuration: session.estimatedDuration,
+            energyRating: session.energyRating,
           };
 
           const updatedHistory = [...(session.revisionHistory || []), currentRevision];
@@ -254,10 +313,30 @@ export const useLockinStore = create<LockinStore>()(
           const sessionId = session.id || session.startTime;
           const sessionSidetracks = session.sidetracks || [];
 
+          // Build a SessionTrend document for analytics
+          const trend: SessionTrend = {
+            sessionId: String(sessionId),
+            task: session.task,
+            energyRating: session.energyRating ?? null,
+            estimatedDuration: session.estimatedDuration ?? null,
+            actualDuration: totalDuration,
+            startTime: session.startTime,
+            endTime,
+            revisionCount: updatedHistory.length,
+          };
+
+          const isMega = Math.random() < 1 / 6;
+
           if (soundEnabled) {
-            try { playChimeSound(); } catch (e) { console.warn("Chime sound play failed", e); }
+            try {
+              if (isMega) {
+                playMegaChimeSound();
+              } else {
+                playChimeSound();
+              }
+            } catch (e) { console.warn("Chime sound play failed", e); }
           }
-          try { triggerConfetti(); } catch (e) { console.warn("Confetti trigger failed", e); }
+          try { triggerConfetti(isMega); } catch (e) { console.warn("Confetti trigger failed", e); }
 
           set((state) => {
             const exists = state.sessions.some((s) => (s.id || s.startTime) === sessionId);
@@ -275,6 +354,7 @@ export const useLockinStore = create<LockinStore>()(
               zenMode: false,
               triageSidetracks: sessionSidetracks,
               activeTriageIndex: 0,
+              pendingTrend: trend,
             };
           });
         }
@@ -348,24 +428,17 @@ export const useLockinStore = create<LockinStore>()(
         }
       },
       startSessionFromSidetrack: (index) => {
-        const { idleSidetracks } = get();
+        const { idleSidetracks, initiateSessionSetup } = get();
         if (index >= 0 && index < idleSidetracks.length) {
           const taskName = idleSidetracks[index];
           const updatedSidetracks = idleSidetracks.filter((_, idx) => idx !== index);
-          const time = Date.now();
           set({
             idleSidetracks: updatedSidetracks,
-            session: { id: time, task: taskName, startTime: time, notes: [], revision: 1 },
-            elapsed: 0,
-            mode: "active",
-            wrapData: null,
-            input: "",
-            triageSidetracks: [],
-            activeTriageIndex: 0,
           });
+          initiateSessionSetup(taskName);
         }
       },
-      continueSession: (pastSession) => {
+      continueSession: (pastSession, estimatedDuration, energyRating) => {
         const sessionId = pastSession.id || pastSession.startTime;
         const revision = (pastSession.revision || 1) + 1;
         const accumulatedDuration = pastSession.duration || 0;
@@ -381,7 +454,9 @@ export const useLockinStore = create<LockinStore>()(
             notes: [], // Reset for new revision
             sidetracks: [], // Reset for new revision
             panicLimit: 300,
-            panicEndElapsed: accumulatedDuration + 300
+            panicEndElapsed: accumulatedDuration + 300,
+            estimatedDuration,
+            energyRating
           },
           elapsed: accumulatedDuration,
           mode: "active",
@@ -391,6 +466,8 @@ export const useLockinStore = create<LockinStore>()(
           triageSidetracks: [],
           activeTriageIndex: 0,
           showPanicModal: true,
+          activeArchiveId: null,
+          activeArchiveLabel: null,
         });
       },
 
@@ -444,6 +521,129 @@ export const useLockinStore = create<LockinStore>()(
       }),
       setCloudData: (data) => set((state) => ({ ...state, ...data })),
       setSelectedRevisionIndex: (idx) => set({ selectedRevisionIndex: idx }),
+
+      // ─── Archive & Stash Actions ────────────────────────────────────────────
+      setArchives: (archives) => set({ archives }),
+      setArchivesLoading: (val) => set({ archivesLoading: val }),
+      setStash: (stash) => set({ stash }),
+      clearPendingTrend: () => set({ pendingTrend: null }),
+      setShowArchivesPanel: (val) => set({ showArchivesPanel: val }),
+      toggleArchivesPanel: () => set((state) => ({ showArchivesPanel: !state.showArchivesPanel })),
+      setArchiveConfirmPending: (val) => set({ archiveConfirmPending: val }),
+
+      createArchive: (label) => {
+        const state = get();
+        const now = Date.now();
+        const dateLabel = label || new Date(now).toLocaleDateString("en-US", {
+          year: "numeric", month: "long", day: "numeric",
+        });
+        const archive: Archive = {
+          id: String(now),
+          createdAt: now,
+          label: dateLabel,
+          sessions: [...state.sessions],
+          queue: [...state.queue],
+          idleSidetracks: [...state.idleSidetracks],
+          wrapData: state.wrapData,
+        };
+        // Clear workspace, reset to idle, prepend to archive list
+        set({
+          sessions: [],
+          queue: [],
+          idleSidetracks: [],
+          wrapData: null,
+          mode: "idle",
+          session: null,
+          triageSidetracks: [],
+          activeTriageIndex: 0,
+          archives: [archive, ...state.archives],
+          activeArchiveId: null,
+          activeArchiveLabel: null,
+        });
+        return archive;
+      },
+
+      restoreArchive: (archiveId) => {
+        const state = get();
+        const archive = state.archives.find((a) => a.id === archiveId);
+        if (!archive) return { stashCreated: false };
+
+        // If workspace has content, push to stash before restoring
+        const hasContent =
+          state.sessions.length > 0 ||
+          state.queue.length > 0 ||
+          state.idleSidetracks.length > 0;
+
+        const newStash: StashData | null = hasContent
+          ? {
+              sessions: [...state.sessions],
+              queue: [...state.queue],
+              idleSidetracks: [...state.idleSidetracks],
+              wrapData: state.wrapData,
+              stashedAt: Date.now(),
+            }
+          : null;
+
+        set({
+          sessions: archive.sessions,
+          queue: archive.queue,
+          idleSidetracks: archive.idleSidetracks,
+          wrapData: archive.wrapData,
+          stash: newStash,
+          mode: "idle",
+          session: null,
+          triageSidetracks: [],
+          activeTriageIndex: 0,
+          activeArchiveId: archive.id,
+          activeArchiveLabel: archive.label,
+        });
+        return { stashCreated: hasContent };
+      },
+
+      popStash: () => {
+        const { stash } = get();
+        if (!stash) return;
+        set({
+          sessions: stash.sessions,
+          queue: stash.queue,
+          idleSidetracks: stash.idleSidetracks,
+          wrapData: stash.wrapData,
+          stash: null,
+          mode: "idle",
+          session: null,
+          activeArchiveId: null,
+          activeArchiveLabel: null,
+        });
+      },
+
+      discardStash: () => set({ stash: null }),
+      closeArchive: () => {
+        const { stash } = get();
+        if (stash) {
+          set({
+            sessions: stash.sessions,
+            queue: stash.queue,
+            idleSidetracks: stash.idleSidetracks,
+            wrapData: stash.wrapData,
+            stash: null,
+            mode: "idle",
+            session: null,
+            activeArchiveId: null,
+            activeArchiveLabel: null,
+          });
+        } else {
+          set({
+            sessions: [],
+            queue: [],
+            idleSidetracks: [],
+            wrapData: null,
+            mode: "idle",
+            session: null,
+            activeArchiveId: null,
+            activeArchiveLabel: null,
+          });
+        }
+      },
       setPanicTimer: (seconds, isExtension = false) => set((state) => {
         if (state.session) {
           const currentLimit = state.session.panicLimit || 0;
@@ -487,6 +687,83 @@ export const useLockinStore = create<LockinStore>()(
         }
         return {};
       }),
+      initiateSessionSetup: (taskName, options) => {
+        set({
+          setupTaskName: taskName,
+          setupPanicLimit: options?.panicLimit ?? null,
+          setupContinueSessionData: options?.continueSession ?? null,
+          setupStep: "estimate",
+          setupEstimatedDuration: null,
+          input: "",
+        });
+      },
+      submitSetupEstimate: (estimateStr) => {
+        const trimmed = estimateStr.trim();
+        if (trimmed === "") {
+          set({
+            setupEstimatedDuration: null,
+            setupStep: "energy",
+            input: "",
+          });
+          return;
+        }
+
+        const seconds = parseDuration(trimmed);
+        if (seconds === null || seconds <= 0) {
+          set({ toastMsg: "Invalid format. E.g., '25m', '10m', '1h', or Enter to skip." });
+          return;
+        }
+
+        set({
+          setupEstimatedDuration: seconds,
+          setupStep: "energy",
+          input: "",
+        });
+      },
+      submitSetupEnergy: (energyStr) => {
+        const trimmed = energyStr.trim();
+        let energyRating = 3;
+
+        if (trimmed !== "") {
+          const val = parseInt(trimmed, 10);
+          if (!isNaN(val) && val >= 1 && val <= 5) {
+            energyRating = val;
+          } else {
+            set({ toastMsg: "Please enter a rating between 1 and 5, or Enter to skip." });
+            return;
+          }
+        }
+
+        const { setupTaskName, setupPanicLimit, setupEstimatedDuration, setupContinueSessionData, startSession, startPanicSession, continueSession } = get();
+
+        if (setupContinueSessionData) {
+          continueSession(setupContinueSessionData, setupEstimatedDuration ?? undefined, energyRating);
+        } else if (setupPanicLimit !== null) {
+          startPanicSession(setupTaskName || "Unnamed Panic Task", setupPanicLimit, setupEstimatedDuration ?? undefined, energyRating);
+        } else {
+          startSession(setupTaskName || "Unnamed Task", setupEstimatedDuration ?? undefined, energyRating);
+        }
+
+        set({
+          setupTaskName: null,
+          setupPanicLimit: null,
+          setupContinueSessionData: null,
+          setupStep: "idle",
+          setupEstimatedDuration: null,
+          input: "",
+        });
+      },
+      cancelSessionSetup: () => {
+        set({
+          setupTaskName: null,
+          setupPanicLimit: null,
+          setupContinueSessionData: null,
+          setupStep: "idle",
+          setupEstimatedDuration: null,
+          input: "",
+          toastMsg: "Session setup cancelled.",
+        });
+      },
     }),
     {
       name: "lockin-store-state",
@@ -506,6 +783,9 @@ export const useLockinStore = create<LockinStore>()(
         zenMode: state.zenMode,
         triageSidetracks: state.triageSidetracks,
         activeTriageIndex: state.activeTriageIndex,
+        stash: state.stash,
+        activeArchiveId: state.activeArchiveId,
+        activeArchiveLabel: state.activeArchiveLabel,
       }),
     }
   )

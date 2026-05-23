@@ -37,12 +37,19 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   const showHelp = useLockinStore((state) => state.showHelp);
   const selectedHistorySession = useLockinStore((state) => state.selectedHistorySession);
   const selectedRevisionIndex = useLockinStore((state) => state.selectedRevisionIndex);
+  const setupStep = useLockinStore((state) => state.setupStep);
+  const setupTaskName = useLockinStore((state) => state.setupTaskName);
+  const setupEstimatedDuration = useLockinStore((state) => state.setupEstimatedDuration);
+
+  const activeArchiveId = useLockinStore((state) => state.activeArchiveId);
+  const activeArchiveLabel = useLockinStore((state) => state.activeArchiveLabel);
 
   // Actions
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
   const setToastMsg = useLockinStore((state) => state.setToastMsg);
   const setShowHelp = useLockinStore((state) => state.setShowHelp);
   const setSelectedHistorySession = useLockinStore((state) => state.setSelectedHistorySession);
+  const closeArchive = useLockinStore((state) => state.closeArchive);
 
   // Local Ref for auto-scrolling
   const notesEndRef = useRef<HTMLDivElement>(null);
@@ -69,14 +76,28 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
   const commandSuggestions = getCommandSuggestions(mode, sessions, queue, idleSidetracks, session, selectedHistorySession, input);
   const filteredSuggestions = filterSuggestions(commandSuggestions, input);
-  const showSuggestions = filteredSuggestions.length > 0 && !dismissedSuggestions;
+  const showSuggestions = filteredSuggestions.length > 0 && !dismissedSuggestions && setupStep === "idle";
 
 
 
   if (mode === "panic") return null;
 
   return (
-    <div className={`app-container${zenMode ? " zen-active" : ""}`}>
+    <div className={`app-container${zenMode ? " zen-active" : ""}${activeArchiveId ? " archive-active" : ""}`}>
+      {activeArchiveId && (
+        <div className="archive-active-banner">
+          <span className="archive-banner-text">
+            📁 Viewing Archive: {activeArchiveLabel || activeArchiveId}
+          </span>
+          <button 
+            className="archive-banner-close-btn" 
+            onClick={closeArchive}
+            title="Close archive and restore workspace"
+          >
+            Close Archive ✕
+          </button>
+        </div>
+      )}
       {toastMsg && (
         <div className="toast-notification" onClick={() => setToastMsg(null)} title="Click to dismiss">
           {toastMsg}
@@ -270,7 +291,48 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
           </div>
         )}
 
-        {mode === "idle" && !selectedHistorySession && (
+        {setupStep !== "idle" && (
+          <div className="mode-container" key="setup">
+            <div className="setup-card">
+              <div className="setup-header">CALIBRATING SESSION</div>
+              <div className="setup-task-name">{setupTaskName}</div>
+              
+              <div className="setup-steps-progress">
+                <div className={`setup-progress-dot ${setupStep === "estimate" ? "active" : "completed"}`}>
+                  <span className="step-num">1</span>
+                  <span className="step-label">Time Estimate</span>
+                </div>
+                <div className="setup-progress-line"></div>
+                <div className={`setup-progress-dot ${setupStep === "energy" ? "active" : ""}`}>
+                  <span className="step-num">2</span>
+                  <span className="step-label">Energy Level</span>
+                </div>
+              </div>
+
+              <div className="setup-body">
+                {setupStep === "estimate" && (
+                  <div className="setup-prompt-body">
+                    <p className="setup-nudge">ADHD brains struggle with time blindness. Let's calibrate: how long will this take?</p>
+                    <div className="setup-input-hint">Type e.g., <strong>25m</strong>, <strong>10m</strong>, <strong>1h</strong> or press <strong>Enter</strong> to skip.</div>
+                  </div>
+                )}
+                {setupStep === "energy" && (
+                  <div className="setup-prompt-body">
+                    <p className="setup-nudge">Check your energy level: 1 (low) to 5 (high).</p>
+                    <div className="setup-input-hint">Enter a rating from <strong>1</strong> to <strong>5</strong>, or press <strong>Enter</strong> to skip.</div>
+                    {setupEstimatedDuration !== null && (
+                      <div className="setup-stat-summary">
+                        ⏱️ Estimated time: <strong>{formatSummaryDuration(setupEstimatedDuration)}</strong>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mode === "idle" && setupStep === "idle" && !selectedHistorySession && (
           <div className="mode-container" key="idle">
             <div className="empty-state">
               No active session.
@@ -370,6 +432,54 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
             </div>
             <div className="wrap-task-name">{wrapData.task}</div>
 
+            {/* ADHD Calibration & Vibe Check */}
+            <div className="calibration-container" style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+              {wrapData.estimatedDuration !== undefined && wrapData.estimatedDuration > 0 && (() => {
+                const diff = (wrapData.duration || 0) - wrapData.estimatedDuration;
+                const diffPercent = Math.round((diff / wrapData.estimatedDuration) * 100);
+                const diffStr = diffPercent > 0 ? `+${diffPercent}%` : `${diffPercent}%`;
+                const isAccurate = Math.abs(diffPercent) <= 10;
+                const isUnder = diffPercent > 10;
+                
+                return (
+                  <div className="calibration-card" style={{ flex: 1, padding: "12px", border: "0.5px solid var(--color-border)", borderRadius: "4px", backgroundColor: "var(--color-surface)" }}>
+                    <div className="section-label" style={{ fontSize: "9px", marginBottom: "6px" }}>Time Calibration</div>
+                    <div style={{ fontSize: "11px", display: "flex", flexDirection: "column", gap: "2px", color: "var(--color-muted)" }}>
+                      <div>Estimate: <strong style={{ color: "var(--color-text)" }}>{formatSummaryDuration(wrapData.estimatedDuration)}</strong></div>
+                      <div>Actual: <strong style={{ color: "var(--color-text)" }}>{formatSummaryDuration(wrapData.duration || 0)}</strong></div>
+                    </div>
+                    <div 
+                      className="calibration-feedback" 
+                      style={{ 
+                        fontSize: "11px", 
+                        marginTop: "8px", 
+                        fontWeight: "600",
+                        color: isAccurate ? "var(--color-success)" : (isUnder ? "var(--color-panic)" : "var(--color-accent)")
+                      }}
+                    >
+                      {isAccurate 
+                        ? `Perfect calibration! (${diffStr})` 
+                        : (isUnder ? `Underestimated by ${diffStr}` : `Overestimated by ${diffStr}`)}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {wrapData.energyRating !== undefined && (
+                <div className="energy-card" style={{ flex: 1, padding: "12px", border: "0.5px solid var(--color-border)", borderRadius: "4px", backgroundColor: "var(--color-surface)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div>
+                    <div className="section-label" style={{ fontSize: "9px", marginBottom: "6px" }}>Energy Check-in</div>
+                    <div className="energy-stars" style={{ color: "var(--color-accent)", fontSize: "14px", letterSpacing: "1px" }}>
+                      {"★".repeat(wrapData.energyRating)}{"☆".repeat(5 - wrapData.energyRating)}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "10.5px", color: "var(--color-muted)", fontWeight: "500", marginTop: "4px" }}>
+                    Vibe: {wrapData.energyRating}/5
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Wrap-mode Sidetrack Triage */}
             {triageSidetracks.length > 0 && activeTriageIndex < triageSidetracks.length ? (
               <div className="triage-card">
@@ -459,8 +569,19 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
             }}
           />
         )}
-        <div className="input-wrapper" onClick={() => inputRef.current?.focus()}>
-          {(() => {
+        <div className={`input-wrapper ${setupStep !== "idle" ? "setup-input-active" : ""}`} onClick={() => inputRef.current?.focus()}>
+          {setupStep !== "idle" ? (
+            <input
+              ref={inputRef}
+              type="text"
+              className="command-input setup-mode-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholderText}
+              autoFocus
+            />
+          ) : (() => {
             const parsed = getParsedCommand(input);
             if (parsed) {
               return (

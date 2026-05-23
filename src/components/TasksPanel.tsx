@@ -4,13 +4,13 @@ import { useLockinStore } from "../store/useLockinStore";
 export const TasksPanel: React.FC = () => {
   const queue = useLockinStore((state) => state.queue);
   const deleteQueueItem = useLockinStore((state) => state.deleteQueueItem);
-  const startSession = useLockinStore((state) => state.startSession);
+  const initiateSessionSetup = useLockinStore((state) => state.initiateSessionSetup);
   const input = useLockinStore((state) => state.input);
   const setInput = useLockinStore((state) => state.setInput);
 
   const handleStartTask = (task: { id: number; text: string }) => {
     deleteQueueItem(task.id);
-    startSession(task.text);
+    initiateSessionSetup(task.text);
   };
 
   return (

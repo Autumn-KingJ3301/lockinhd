@@ -17,6 +17,8 @@ export type SessionRevision = {
   notes: Note[];
   todos: TodoItem[]; // Snapshot of todos as they were at the end of this revision
   sidetracks: string[];
+  estimatedDuration?: number;
+  energyRating?: number;
 };
 
 export type Session = {
@@ -35,6 +37,8 @@ export type Session = {
   panicEndElapsed?: number; // The elapsed second value at which the panic timer expires
   panicLimit?: number; // The total limit in seconds set for panic (e.g., 300)
   timerEndElapsed?: number; // The elapsed second value at which the in-session timer expires
+  estimatedDuration?: number;
+  energyRating?: number;
 };
 
 export type QueueItem = {
@@ -44,3 +48,35 @@ export type QueueItem = {
 
 export type AppMode = "idle" | "active" | "panic" | "wrap";
 export type Theme = "system" | "light" | "dark";
+
+// Archive: a dated snapshot of workspace data (sessions, queue, inbox)
+export type Archive = {
+  id: string;
+  createdAt: number;
+  label: string; // e.g. "May 24, 2026"
+  sessions: Session[];
+  queue: QueueItem[];
+  idleSidetracks: string[];
+  wrapData: Session | null;
+};
+
+// Stash: a single temporary workspace snapshot (git-stash style)
+export type StashData = {
+  sessions: Session[];
+  queue: QueueItem[];
+  idleSidetracks: string[];
+  wrapData: Session | null;
+  stashedAt: number;
+};
+
+// SessionTrend: analytics document stored separately in Firestore
+export type SessionTrend = {
+  sessionId: string; // reference to Session.id
+  task: string;
+  energyRating: number | null;
+  estimatedDuration: number | null;
+  actualDuration: number;
+  startTime: number;
+  endTime: number;
+  revisionCount: number;
+};

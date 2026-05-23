@@ -65,6 +65,8 @@ function isDataEqual(a: LockinData, b: LockinData): boolean {
     a.soundEnabled === b.soundEnabled &&
     a.zenMode === b.zenMode &&
     a.activeTriageIndex === b.activeTriageIndex &&
+    a.activeArchiveId === b.activeArchiveId &&
+    a.activeArchiveLabel === b.activeArchiveLabel &&
     isArrayEqual(a.idleSidetracks || [], b.idleSidetracks || [], (x, y) => x === y) &&
     isArrayEqual(a.triageSidetracks || [], b.triageSidetracks || [], (x, y) => x === y) &&
     isArrayEqual(a.queue || [], b.queue || [], (x, y) => x.id === y.id && x.text === y.text) &&
@@ -78,23 +80,41 @@ export const useCloudSync = () => {
   const user = useAuthStore((state) => state.user);
   const initialized = useAuthStore((state) => state.initialized);
   const setCloudData = useLockinStore((state) => state.setCloudData);
-  
+  const setArchives = useLockinStore((state) => state.setArchives);
+  const setArchivesLoading = useLockinStore((state) => state.setArchivesLoading);
+  const setStash = useLockinStore((state) => state.setStash);
+  const clearPendingTrend = useLockinStore((state) => state.clearPendingTrend);
+
   // Use a ref to prevent saving data that was just loaded
   const isInitialLoad = useRef(true);
 
-  // Load user data on login
+  // Load user data on login (workspace + archives + stash)
   useEffect(() => {
     if (initialized && user) {
       const loadData = async () => {
         try {
+          setArchivesLoading(true);
+
+          // Load main workspace
           const data = await apiService.loadUserData(user.uid);
           if (data) {
             setCloudData(data);
           }
+
+          // Load archives
+          const archives = await apiService.loadArchives(user.uid);
+          setArchives(archives);
+
+          // Load stash
+          const stash = await apiService.loadStash(user.uid);
+          if (stash) {
+            setStash(stash);
+          }
         } catch (error) {
           console.error("Failed to load user data from cloud:", error);
         } finally {
-          // Add a short delay to ensure Zustand state propagates and triggering effects/subscribers settle
+          setArchivesLoading(false);
+          // Add a short delay to ensure Zustand state propagates
           setTimeout(() => {
             isInitialLoad.current = false;
           }, 100);
@@ -104,9 +124,28 @@ export const useCloudSync = () => {
     } else if (initialized && !user) {
       isInitialLoad.current = true;
     }
-  }, [user, initialized, setCloudData]);
+  }, [user, initialized, setCloudData, setArchives, setArchivesLoading, setStash]);
 
-  // Sync state to cloud on changes
+  // Watch for pendingTrend and write to Firestore immediately
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = useLockinStore.subscribe((state) => {
+      if (!state.pendingTrend) return;
+      const trend = state.pendingTrend;
+
+      // Clear it first to avoid duplicate writes
+      clearPendingTrend();
+
+      apiService.saveSessionTrend(user.uid, trend)
+        .then(() => console.log("Session trend saved:", trend.sessionId))
+        .catch((err) => console.error("Failed to save session trend:", err));
+    });
+
+    return () => unsubscribe();
+  }, [user, clearPendingTrend]);
+
+  // Sync state to cloud on changes (debounced)
   useEffect(() => {
     if (!user) return;
 
@@ -132,30 +171,25 @@ export const useCloudSync = () => {
         zenMode: state.zenMode,
         triageSidetracks: state.triageSidetracks,
         activeTriageIndex: state.activeTriageIndex,
+        activeArchiveId: state.activeArchiveId,
+        activeArchiveLabel: state.activeArchiveLabel,
       };
 
-      // 1. Skip sync if values are equal to what we already saved/queued
+      // Skip sync if values are equal to what we already saved/queued
       if (lastSavedData && isDataEqual(lastSavedData, dataToSave)) {
         return;
       }
 
-      // Update the reference of what we want to save
       lastSavedData = dataToSave;
 
-      // 2. Clear any existing debounce timer to cancel obsolete writes
       if (debounceTimer) {
         clearTimeout(debounceTimer);
       }
 
-      // 3. Schedule a new debounced write
       debounceTimer = setTimeout(() => {
         apiService.saveUserData(user.uid, dataToSave)
-          .then(() => {
-            console.log("Cloud sync successful");
-          })
-          .catch((err) => {
-            console.error("Failed to save user data to cloud:", err);
-          });
+          .then(() => console.log("Cloud sync successful"))
+          .catch((err) => console.error("Failed to save user data to cloud:", err));
       }, 2000);
     });
 
@@ -165,5 +199,38 @@ export const useCloudSync = () => {
         clearTimeout(debounceTimer);
       }
     };
+  }, [user]);
+
+  // Sync archive saves triggered externally (from Profile page via createArchive)
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = useLockinStore.subscribe((state, prevState) => {
+      if (isInitialLoad.current) return;
+      // Detect new archive added (length increased)
+      if (state.archives.length > prevState.archives.length) {
+        const newArchive = state.archives[0]; // most recent is first
+        if (newArchive) {
+          apiService.saveArchive(user.uid, newArchive)
+            .then(() => console.log("Archive saved:", newArchive.id))
+            .catch((err) => console.error("Failed to save archive:", err));
+        }
+      }
+      // Detect stash changes
+      if (state.stash !== prevState.stash) {
+        if (state.stash) {
+          apiService.saveStash(user.uid, state.stash)
+            .then(() => console.log("Stash saved"))
+            .catch((err) => console.error("Failed to save stash:", err));
+        } else {
+          // Stash was cleared
+          apiService.clearStash(user.uid)
+            .then(() => console.log("Stash cleared"))
+            .catch((err) => console.error("Failed to clear stash:", err));
+        }
+      }
+    });
+
+    return () => unsubscribe();
   }, [user]);
 };

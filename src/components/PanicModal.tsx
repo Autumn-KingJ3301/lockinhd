@@ -44,6 +44,7 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
   const remaining = session.panicEndElapsed - elapsed;
   const isCritical = remaining <= 15;
   const isOvertime = remaining < 0;
+  const isWarning = remaining <= 120 && remaining > 15;
 
   // Clock computations
   const totalSeconds = elapsed;
@@ -77,7 +78,7 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
   const hintText = "type note + ↵ to log  ·  /panic [time] to extend  ·  /min to close overlay";
 
   return (
-    <div className={`panic-modal-overlay ${isCritical ? "critical" : ""} ${isOvertime ? "overtime" : ""}`}>
+    <div className={`panic-modal-overlay ${isCritical ? "critical" : ""} ${isOvertime ? "overtime" : ""} ${isWarning ? "warning" : ""}`}>
       <div className="panic-modal-container">
         
         {/* Modal Header */}
@@ -115,7 +116,7 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
             </svg>
           </div>
           
-          <div className={`panic-modal-digital ${isCritical ? "critical-text" : ""}`}>
+          <div className={`panic-modal-digital ${isCritical ? "critical-text" : ""} ${isWarning ? "warning-text" : ""}`}>
             {isOvertime ? `⚠️ ${formatPanicTime(remaining)}` : `⏳ ${formatPanicTime(remaining)}`}
           </div>
 

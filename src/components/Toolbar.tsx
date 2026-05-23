@@ -16,6 +16,10 @@ export const Toolbar: React.FC = () => {
   const setShowInboxPanel = useLockinStore((state) => state.setShowInboxPanel);
   const showTasksPanel = useLockinStore((state) => state.showTasksPanel);
   const setShowTasksPanel = useLockinStore((state) => state.setShowTasksPanel);
+  const showArchivesPanel = useLockinStore((state) => state.showArchivesPanel);
+  const toggleArchivesPanel = useLockinStore((state) => state.toggleArchivesPanel);
+  const archives = useLockinStore((state) => state.archives);
+  const stash = useLockinStore((state) => state.stash);
   const sessions = useLockinStore((state) => state.sessions);
   const queue = useLockinStore((state) => state.queue);
   const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
@@ -72,6 +76,21 @@ export const Toolbar: React.FC = () => {
         style={{ marginRight: "6px" }}
       >
         {showInboxPanel ? "Hide Inbox" : "Show Inbox"} ({idleSidetracks.length})
+      </button>
+      <button
+        id="toolbar-archives-btn"
+        className="theme-toggle-btn"
+        onClick={toggleArchivesPanel}
+        style={{
+          marginRight: "6px",
+          ...(showArchivesPanel
+            ? { borderColor: "var(--color-accent)", color: "var(--color-accent)" }
+            : stash
+            ? { borderColor: "#f59e0b", color: "#f59e0b" }
+            : {}),
+        }}
+      >
+        {showArchivesPanel ? "Hide Archives" : "Archives"} ({archives.length}){stash ? " ⟆" : ""}
       </button>
       {user && (
         <button

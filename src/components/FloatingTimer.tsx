@@ -18,6 +18,7 @@ export const FloatingTimer: React.FC = () => {
     : (isTimer ? session.timerEndElapsed! - elapsed : 0);
   const isUrgent = (isPanic || isTimer) && remaining <= 15;
   const isOvertime = (isPanic || isTimer) && remaining < 0;
+  const isWarning = (isPanic || isTimer) && remaining <= 120 && remaining > 15;
 
   // Convert elapsed seconds to clock-hand angles
   const totalSeconds = elapsed;
@@ -46,7 +47,7 @@ export const FloatingTimer: React.FC = () => {
 
   return (
     <div
-      className={`floating-timer-box ${isUrgent ? "panic-pulse" : ""} ${isOvertime ? "panic-overtime" : ""}`}
+      className={`floating-timer-box ${isUrgent ? "panic-pulse" : ""} ${isOvertime ? "panic-overtime" : ""} ${isWarning ? "panic-warning-pulse" : ""}`}
       onClick={() => {
         if (isPanic) setShowPanicModal(true);
       }}

@@ -204,6 +204,43 @@ export const commandRegistry: CommandSchema[] = [
     args: [
       { name: "index", type: "index", optional: true }
     ]
+  },
+  {
+    name: "archive",
+    category: "actions",
+    description: "Archive workspace & clear it",
+    shortcuts: ["arc"],
+    args: [
+      { name: "label", type: "string", optional: true, allowSpaces: true }
+    ]
+  },
+  {
+    name: "archives",
+    category: "nav",
+    description: "Toggle archives panel",
+    shortcuts: ["arcs"],
+    args: []
+  },
+  {
+    name: "stash-pop",
+    category: "actions",
+    description: "Pop stash back to workspace",
+    shortcuts: ["sp"],
+    args: []
+  },
+  {
+    name: "stash-discard",
+    category: "actions",
+    description: "Discard stash permanently",
+    shortcuts: ["sd"],
+    args: []
+  },
+  {
+    name: "close-archive",
+    category: "actions",
+    description: "Close active archive and restore workspace",
+    shortcuts: ["close", "ca"],
+    args: []
   }
 ];
 
