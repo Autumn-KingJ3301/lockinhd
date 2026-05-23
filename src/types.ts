@@ -9,6 +9,16 @@ export type TodoItem = {
   completed: boolean;
 };
 
+export type SessionRevision = {
+  revisionNumber: number;
+  startTime: number;
+  endTime?: number;
+  duration: number; // Duration of *this* specific revision
+  notes: Note[];
+  todos: TodoItem[]; // Snapshot of todos as they were at the end of this revision
+  sidetracks: string[];
+};
+
 export type Session = {
   id?: number; // Unique identifier (typically the initial startTime)
   task: string;
@@ -21,6 +31,9 @@ export type Session = {
   accumulatedDuration?: number; // Seconds spent in prior runs
   revision?: number; // Revision number (starts at 1)
   resumeCue?: string;
+  revisionHistory?: SessionRevision[];
+  panicEndElapsed?: number; // The elapsed second value at which the panic timer expires
+  panicLimit?: number; // The total limit in seconds set for panic (e.g., 300)
 };
 
 export type QueueItem = {

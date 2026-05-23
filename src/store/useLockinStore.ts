@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Note, TodoItem, Session, QueueItem, AppMode, Theme } from "../types";
+import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme } from "../types";
 import { playPopSound, playChimeSound } from "../utils/audioSynth";
 import { triggerConfetti } from "../utils/confetti";
 
@@ -27,6 +27,8 @@ export interface LockinStoreState {
   triageSidetracks: string[];
   activeTriageIndex: number;
   showHelp: boolean;
+  selectedRevisionIndex: number | null;
+  showPanicModal: boolean;
 }
 
 export interface LockinStoreActions {
@@ -79,6 +81,11 @@ export interface LockinStoreActions {
   processCurrentTriage: (action: "queue" | "start" | "delete" | "keep") => void;
   setShowHelp: (val: boolean) => void;
   toggleHelp: () => void;
+  setCloudData: (data: Partial<LockinStoreState>) => void;
+  setSelectedRevisionIndex: (idx: number | null) => void;
+  setPanicTimer: (seconds: number, isExtension?: boolean) => void;
+  cancelPanicTimer: () => void;
+  setShowPanicModal: (val: boolean) => void;
 }
 
 export type LockinStore = LockinStoreState & LockinStoreActions;
@@ -109,6 +116,8 @@ export const useLockinStore = create<LockinStore>()(
       triageSidetracks: [],
       activeTriageIndex: 0,
       showHelp: false,
+      selectedRevisionIndex: null,
+      showPanicModal: true,
 
       // Actions
       setMode: (mode) => set({ mode }),
@@ -150,13 +159,22 @@ export const useLockinStore = create<LockinStore>()(
       startSession: (taskName) => {
         const time = Date.now();
         set({
-          session: { id: time, task: taskName, startTime: time, notes: [], revision: 1 },
+          session: { 
+            id: time, 
+            task: taskName, 
+            startTime: time, 
+            notes: [], 
+            revision: 1,
+            panicLimit: 300,
+            panicEndElapsed: 300
+          },
           elapsed: 0,
           mode: "active",
           wrapData: null,
           input: "",
           triageSidetracks: [],
           activeTriageIndex: 0,
+          showPanicModal: true,
         });
       },
       startNextQueuedTask: () => {
@@ -166,12 +184,21 @@ export const useLockinStore = create<LockinStore>()(
           const time = Date.now();
           set({
             queue: queue.slice(1),
-            session: { id: time, task: nextTask.text, startTime: time, notes: [], revision: 1 },
+            session: { 
+              id: time, 
+              task: nextTask.text, 
+              startTime: time, 
+              notes: [], 
+              revision: 1,
+              panicLimit: 300,
+              panicEndElapsed: 300
+            },
             elapsed: 0,
             mode: "active",
             wrapData: null,
             triageSidetracks: [],
             activeTriageIndex: 0,
+            showPanicModal: true,
           });
         }
       },
@@ -183,10 +210,24 @@ export const useLockinStore = create<LockinStore>()(
           const endTime = Date.now();
           const runDuration = Math.round((endTime - session.startTime) / 1000);
           const totalDuration = runDuration + (session.accumulatedDuration || 0);
+
+          const currentRevision: SessionRevision = {
+            revisionNumber: session.revision || 1,
+            startTime: session.startTime,
+            endTime,
+            duration: runDuration,
+            notes: [...session.notes],
+            todos: [...(session.todos || [])],
+            sidetracks: [...(session.sidetracks || [])],
+          };
+
+          const updatedHistory = [...(session.revisionHistory || []), currentRevision];
+
           const completedSession: Session = {
             ...session,
             endTime,
             duration: totalDuration,
+            revisionHistory: updatedHistory,
           };
           const sessionId = session.id || session.startTime;
           const sessionSidetracks = session.sidetracks || [];
@@ -315,6 +356,10 @@ export const useLockinStore = create<LockinStore>()(
             revision,
             duration: undefined,
             endTime: undefined,
+            notes: [], // Reset for new revision
+            sidetracks: [], // Reset for new revision
+            panicLimit: 300,
+            panicEndElapsed: accumulatedDuration + 300
           },
           elapsed: accumulatedDuration,
           mode: "active",
@@ -323,6 +368,7 @@ export const useLockinStore = create<LockinStore>()(
           selectedHistorySession: null,
           triageSidetracks: [],
           activeTriageIndex: 0,
+          showPanicModal: true,
         });
       },
 
@@ -371,7 +417,40 @@ export const useLockinStore = create<LockinStore>()(
         };
       }),
       setShowHelp: (showHelp) => set({ showHelp }),
-      toggleHelp: () => set((state) => ({ showHelp: !state.showHelp })),
+      toggleHelp: () => set((state) => {
+        return { showHelp: !state.showHelp };
+      }),
+      setCloudData: (data) => set((state) => ({ ...state, ...data })),
+      setSelectedRevisionIndex: (idx) => set({ selectedRevisionIndex: idx }),
+      setPanicTimer: (seconds, isExtension = false) => set((state) => {
+        if (state.session) {
+          const currentLimit = state.session.panicLimit || 0;
+          const currentEnd = state.session.panicEndElapsed || state.elapsed;
+          const newLimit = isExtension ? currentLimit + seconds : seconds;
+          const newEnd = isExtension ? currentEnd + seconds : state.elapsed + seconds;
+          return {
+            session: {
+              ...state.session,
+              panicLimit: newLimit,
+              panicEndElapsed: newEnd
+            }
+          };
+        }
+        return {};
+      }),
+      cancelPanicTimer: () => set((state) => {
+        if (state.session) {
+          return {
+            session: {
+              ...state.session,
+              panicLimit: undefined,
+              panicEndElapsed: undefined
+            }
+          };
+        }
+        return {};
+      }),
+      setShowPanicModal: (showPanicModal) => set({ showPanicModal }),
     }),
     {
       name: "lockin-store-state",
@@ -386,6 +465,7 @@ export const useLockinStore = create<LockinStore>()(
         showInboxPanel: state.showInboxPanel,
         theme: state.theme,
         soundEnabled: state.soundEnabled,
+        showPanicModal: state.showPanicModal,
       }),
     }
   )

@@ -1,14 +1,20 @@
 import React from "react";
 import { useLockinStore } from "../store/useLockinStore";
-import { formatTime } from "../utils/timeFormatters";
+import { formatTime, formatPanicTime } from "../utils/timeFormatters";
 
 export const FloatingTimer: React.FC = () => {
   const mode = useLockinStore((state) => state.mode);
   const session = useLockinStore((state) => state.session);
   const elapsed = useLockinStore((state) => state.elapsed);
   const completeSession = useLockinStore((state) => state.completeSession);
+  const setShowPanicModal = useLockinStore((state) => state.setShowPanicModal);
 
   if (mode !== "active" || !session) return null;
+
+  const isPanic = session.panicEndElapsed !== undefined;
+  const remaining = isPanic ? session.panicEndElapsed! - elapsed : 0;
+  const isCritical = isPanic && remaining <= 15;
+  const isOvertime = isPanic && remaining < 0;
 
   // Convert elapsed seconds to clock-hand angles
   const totalSeconds = elapsed;
@@ -36,7 +42,14 @@ export const FloatingTimer: React.FC = () => {
   const secPt = toPoint(secondDeg, 19);
 
   return (
-    <div className="floating-timer-box">
+    <div
+      className={`floating-timer-box ${isCritical ? "panic-pulse" : ""} ${isOvertime ? "panic-overtime" : ""}`}
+      onClick={() => {
+        if (isPanic) setShowPanicModal(true);
+      }}
+      style={{ cursor: isPanic ? "pointer" : "default" }}
+      title={isPanic ? "Click to maximize focus overlay" : undefined}
+    >
       {/* Animated SVG Clock */}
       <svg
         className="clock-icon-animated"
@@ -76,7 +89,7 @@ export const FloatingTimer: React.FC = () => {
         />
         {/* Second hand */}
         <line
-          className="clock-hand second-hand"
+          className={`clock-hand second-hand ${isPanic ? "panic-hand" : ""}`}
           x1={cx} y1={cy}
           x2={secPt.x} y2={secPt.y}
         />
@@ -89,13 +102,21 @@ export const FloatingTimer: React.FC = () => {
         <div className="floating-timer-task" title={session.task}>
           {session.task}
         </div>
-        <div className="floating-timer-digital">{formatTime(elapsed)}</div>
+        <div
+          className="floating-timer-digital"
+          style={isPanic ? { color: "var(--color-panic)", fontWeight: "bold" } : {}}
+        >
+          {isPanic ? formatPanicTime(remaining) : formatTime(elapsed)}
+        </div>
       </div>
 
       {/* Quick Done button */}
       <button
         className="floating-timer-done-btn"
-        onClick={completeSession}
+        onClick={(e) => {
+          e.stopPropagation();
+          completeSession();
+        }}
         title="Complete session"
       >
         ✓ done
@@ -103,3 +124,4 @@ export const FloatingTimer: React.FC = () => {
     </div>
   );
 };
+

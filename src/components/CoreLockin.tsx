@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 import { SuggestionsOverlay } from "./SuggestionsOverlay";
-import { formatTime, formatTimestamp } from "../utils/timeFormatters";
+import { formatTime, formatTimestamp, formatSummaryDuration, formatPanicTime } from "../utils/timeFormatters";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
+import { getCommandSplit } from "../utils/commandParser";
 
 type CoreLockinProps = {
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -34,6 +35,8 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   const activeTriageIndex = useLockinStore((state) => state.activeTriageIndex);
   const soundEnabled = useLockinStore((state) => state.soundEnabled);
   const showHelp = useLockinStore((state) => state.showHelp);
+  const selectedHistorySession = useLockinStore((state) => state.selectedHistorySession);
+  const selectedRevisionIndex = useLockinStore((state) => state.selectedRevisionIndex);
 
   // Actions
   const startSession = useLockinStore((state) => state.startSession);
@@ -41,6 +44,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
   const setToastMsg = useLockinStore((state) => state.setToastMsg);
   const setShowHelp = useLockinStore((state) => state.setShowHelp);
+  const setSelectedHistorySession = useLockinStore((state) => state.setSelectedHistorySession);
 
   // Local Ref for auto-scrolling
   const notesEndRef = useRef<HTMLDivElement>(null);
@@ -52,8 +56,20 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
     }
   }, [session?.notes, mode]);
 
+  // Auto-dismiss toast notifications after 3 seconds
+  useEffect(() => {
+    if (toastMsg) {
+      const timer = setTimeout(() => {
+        setToastMsg(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMsg, setToastMsg]);
+
   // Suggestions — sourced from shared utility (single source of truth)
-  const commandSuggestions = getCommandSuggestions(mode);
+  const sessions = useLockinStore((state) => state.sessions);
+  const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
+  const commandSuggestions = getCommandSuggestions(mode, sessions, queue, idleSidetracks, session, selectedHistorySession, input);
   const filteredSuggestions = filterSuggestions(commandSuggestions, input);
   const showSuggestions = filteredSuggestions.length > 0 && !dismissedSuggestions;
 
@@ -69,7 +85,11 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
 
   return (
     <div className={`app-container${zenMode ? " zen-active" : ""}`}>
-      {toastMsg && <div className="toast-notification">{toastMsg}</div>}
+      {toastMsg && (
+        <div className="toast-notification" onClick={() => setToastMsg(null)} title="Click to dismiss">
+          {toastMsg}
+        </div>
+      )}
 
       {/* Header - Always visible */}
       <header className="app-header">
@@ -84,9 +104,20 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
           {mode === "idle" && <div className="status-badge">idle</div>}
 
           {mode === "active" && (
-            <div className="status-badge active">
-              <span className="pulse-dot"></span>
-              <span>{formatTime(elapsed)}</span>
+            <div className={`status-badge active ${session?.panicEndElapsed !== undefined ? "panic-active-badge" : ""}`}>
+              {session?.panicEndElapsed !== undefined ? (
+                <>
+                  <span className={`pulse-dot ${session.panicEndElapsed - elapsed <= 15 ? "panic-critical-pulse" : ""}`}></span>
+                  <span style={{ color: "var(--color-panic)", fontWeight: "bold" }}>
+                    ⏳ {formatPanicTime(session.panicEndElapsed - elapsed)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="pulse-dot"></span>
+                  <span>{formatTime(elapsed)}</span>
+                </>
+              )}
             </div>
           )}
 
@@ -100,6 +131,94 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
 
       {/* Content Area - changes per mode */}
       <main className="app-content" style={{ position: "relative" }}>
+        {/* History View */}
+        {selectedHistorySession && (() => {
+          const isViewingRevision = selectedRevisionIndex !== null && selectedHistorySession.revisionHistory && selectedHistorySession.revisionHistory[selectedRevisionIndex];
+          const displayData = isViewingRevision ? selectedHistorySession.revisionHistory![selectedRevisionIndex!] : selectedHistorySession;
+          
+          return (
+            <div className="mode-container" key="history-detail" style={{ animation: "none" }}>
+              <div
+                className="history-detail-header"
+                style={{ marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <button
+                    className="theme-toggle-btn"
+                    onClick={() => {
+                      setSelectedHistorySession(null);
+                      useLockinStore.setState({ selectedRevisionIndex: null });
+                    }}
+                    style={{ fontSize: "11px", padding: "2px 6px" }}
+                  >
+                    ← Back
+                  </button>
+                  <span className="section-label" style={{ margin: 0 }}>
+                    {isViewingRevision ? `Revision ${(displayData as any).revisionNumber}` : "Aggregated History"}
+                  </span>
+                </div>
+                <div className="badge badge-revision" style={{ fontSize: "11px" }}>rev {selectedHistorySession.revision || 1}</div>
+              </div>
+
+              <div className="task-name-large">{selectedHistorySession.task}</div>
+
+              <div className="wrap-duration" style={{ fontSize: "12px", marginBottom: "16px", color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>
+                {isViewingRevision ? "Revision Time: " : "Total Focus Time: "}
+                {formatSummaryDuration(displayData.duration || 0)}
+              </div>
+
+              {displayData.todos && displayData.todos.length > 0 && (
+                <div className="todos-section" style={{ marginBottom: "16px" }}>
+                  <div className="task-label">Todos {isViewingRevision ? "(Snapshot)" : ""}</div>
+                  <div className="todo-list">
+                    {displayData.todos.map((todo) => (
+                      <div key={todo.id} className="todo-item" style={{ cursor: "default" }}>
+                        <span className="todo-checkbox">{todo.completed ? "[x]" : "[ ]"}</span>
+                        <span className={`todo-text ${todo.completed ? "completed" : ""}`}>
+                          {todo.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {displayData.sidetracks && displayData.sidetracks.length > 0 && (
+                <div className="todos-section" style={{ marginBottom: "16px" }}>
+                  <div className="task-label">Sidetracks</div>
+                  <div className="todo-list">
+                    {displayData.sidetracks.map((track, idx) => (
+                      <div key={idx} className="todo-item" style={{ cursor: "default" }}>
+                        <span className="todo-checkbox" style={{ color: "var(--color-accent)" }}>
+                          💡
+                        </span>
+                        <span className="todo-text" style={{ fontStyle: "italic" }}>
+                          {track}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <hr className="content-divider" />
+              <div className="section-label">{isViewingRevision ? "Revision Notes" : "All Session Notes"}</div>
+              <div className="notes-feed-container" style={{ flexGrow: 1 }}>
+                {displayData.notes.length > 0 ? (
+                  displayData.notes.map((note, idx) => (
+                    <div key={idx} className="note-item">
+                      <span className="note-time">{formatTimestamp(note.ts)}</span>
+                      <span className="note-text">{note.text}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">No notes recorded.</div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Help Overlay */}
         {showHelp && (
           <div className="help-overlay" key="help">
@@ -113,6 +232,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
                 <div className="help-row"><kbd>/done</kbd><kbd>/d</kbd><span>End current session</span></div>
                 <div className="help-row"><kbd>/continue</kbd><kbd>/con</kbd><span>Resume last session</span></div>
                 <div className="help-row"><kbd>/continue 2</kbd><span>Resume Nth-from-last session</span></div>
+                <div className="help-row"><kbd>/rev [n]</kbd><span>View data for revision n (history only)</span></div>
               </div>
               <div className="help-section">
                 <div className="help-section-label">Task Queue</div>
@@ -155,7 +275,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
           </div>
         )}
 
-        {mode === "idle" && (
+        {mode === "idle" && !selectedHistorySession && (
           <div className="mode-container" key="idle">
             {queue.length > 0 ? (
               <>
@@ -198,7 +318,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
           </div>
         )}
 
-        {mode === "active" && session && (
+        {mode === "active" && session && !selectedHistorySession && (
           <div className="mode-container" key="active">
             <div className="task-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>WORKING ON</span>
@@ -208,6 +328,20 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
               </div>
             </div>
             <div className="task-name-large">{session.task}</div>
+
+            {/* Panic Countdown Banner */}
+            {session.panicEndElapsed !== undefined && (
+              <div className={`panic-banner ${session.panicEndElapsed - elapsed <= 15 ? "panic-critical" : ""}`}>
+                <span className="panic-banner-icon">🚨</span>
+                <span className="panic-banner-text">
+                  {session.panicEndElapsed - elapsed > 0 ? (
+                    <>Panic countdown: <strong>{formatPanicTime(session.panicEndElapsed - elapsed)}</strong></>
+                  ) : (
+                    <>Panic expired! Overtime: <strong style={{ color: "var(--color-panic)" }}>{formatPanicTime(session.panicEndElapsed - elapsed)}</strong></>
+                  )}
+                </span>
+              </div>
+            )}
 
             {/* Resume Cue Banner */}
             {session.resumeCue && (
@@ -262,7 +396,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
           </div>
         )}
 
-        {mode === "wrap" && wrapData && (
+        {mode === "wrap" && wrapData && !selectedHistorySession && (
           <div className="mode-container" key="wrap">
             <div className="wrap-header-row">
               <div className="wrap-success-indicator" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -363,17 +497,54 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
             }}
           />
         )}
-        <div className="input-wrapper">
-          <input
-            ref={inputRef}
-            type="text"
-            className="command-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholderText}
-            autoFocus
-          />
+        <div className="input-wrapper" onClick={() => inputRef.current?.focus()}>
+          {(() => {
+            const split = getCommandSplit(input);
+            if (split) {
+              const category = (() => {
+                const tasks = ["add", "sidetrack", "todo", "continue", "remove-queue", "delete-idea"];
+                const actions = ["done", "check", "remove", "export"];
+                const nav = ["history", "inbox", "profile", "help"];
+                const settings = ["theme", "zen", "sound"];
+                
+                if (tasks.includes(split.cmdName)) return "tasks";
+                if (actions.includes(split.cmdName)) return "actions";
+                if (nav.includes(split.cmdName)) return "nav";
+                if (settings.includes(split.cmdName)) return "settings";
+                return "default";
+              })();
+
+              return (
+                <>
+                  <div className={`command-chip chip-${category}`}>
+                    {split.commandPart.substring(1)}
+                  </div>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    className="command-input"
+                    value={split.argsPart}
+                    onChange={(e) => setInput(split.commandPart + " " + e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={placeholderText}
+                    autoFocus
+                  />
+                </>
+              );
+            }
+            return (
+              <input
+                ref={inputRef}
+                type="text"
+                className="command-input"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={placeholderText}
+                autoFocus
+              />
+            );
+          })()}
         </div>
         <div className="hint-text">{hintText}</div>
       </footer>

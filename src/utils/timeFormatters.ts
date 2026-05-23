@@ -26,3 +26,15 @@ export const formatSummaryDuration = (totalSeconds: number) => {
   if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
   return parts.join(" ");
 };
+
+export const formatPanicTime = (seconds: number) => {
+  const isNegative = seconds < 0;
+  const absSecs = Math.abs(seconds);
+  const hrs = Math.floor(absSecs / 3600);
+  const mins = Math.floor((absSecs % 3600) / 60);
+  const secs = absSecs % 60;
+  const pad = (num: number) => String(num).padStart(2, "0");
+  const formatted = hrs > 0 ? `${hrs}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`;
+  return isNegative ? `-${formatted}` : formatted;
+};
+

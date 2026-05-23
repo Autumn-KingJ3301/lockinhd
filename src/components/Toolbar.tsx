@@ -1,8 +1,12 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../store/useLockinStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { generateMarkdownExport } from "../utils/markdownExporter";
 
 export const Toolbar: React.FC = () => {
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
   const theme = useLockinStore((state) => state.theme);
   const isSystemDark = useLockinStore((state) => state.isSystemDark);
   const setTheme = useLockinStore((state) => state.setTheme);
@@ -55,9 +59,19 @@ export const Toolbar: React.FC = () => {
       <button
         className="theme-toggle-btn"
         onClick={() => setShowInboxPanel(!showInboxPanel)}
+        style={{ marginRight: "6px" }}
       >
         {showInboxPanel ? "Hide Inbox" : "Show Inbox"} ({idleSidetracks.length})
       </button>
+      {user && (
+        <button
+          className="theme-toggle-btn"
+          onClick={() => navigate("/profile")}
+          style={{ borderColor: "var(--color-accent)", color: "var(--color-accent)" }}
+        >
+          Profile
+        </button>
+      )}
     </div>
   );
 };

@@ -16,6 +16,14 @@
   --color-success: hsl(var(--success-hue), var(--success-sat), var(--success-lightness));
   --color-success-bg: hsla(var(--success-hue), var(--success-sat), var(--success-lightness), 0.08);
 
+  /* Panic color: Urgent Red/Orange */
+  --panic-hue: 0;
+  --panic-sat: 84%;
+  --panic-lightness: 60%;
+  --color-panic: hsl(var(--panic-hue), var(--panic-sat), var(--panic-lightness));
+  --color-panic-bg: hsla(var(--panic-hue), var(--panic-sat), var(--panic-lightness), 0.08);
+  --color-panic-border: hsla(var(--panic-hue), var(--panic-sat), var(--panic-lightness), 0.35);
+
   /* Light Theme tokens */
   --bg-light: #fafafa;
   --text-light: #18181b;
@@ -269,10 +277,63 @@ body {
 .input-wrapper {
   display: flex;
   align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  cursor: text;
+}
+
+.command-chip {
+  background-color: var(--color-accent-bg);
+  color: var(--color-accent);
+  border: 0.5px solid var(--color-accent-border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  user-select: none;
+  animation: chipPop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  text-transform: uppercase;
+}
+
+.command-chip.chip-tasks {
+  background-color: var(--color-accent-bg);
+  color: var(--color-accent);
+  border-color: var(--color-accent-border);
+}
+
+.command-chip.chip-actions {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.command-chip.chip-nav {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.command-chip.chip-settings {
+  background-color: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+@keyframes chipPop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .command-input {
-  width: 100%;
+  flex-grow: 1;
+  width: auto;
   font-family: var(--font-sans);
   font-size: 21px;
   font-weight: 400;
@@ -680,7 +741,8 @@ body {
   padding: 6px 12px;
   border-radius: 2px;
   z-index: 100;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
   animation: toastFadeIn 0.25s ease-out forwards;
 }
 
@@ -1190,4 +1252,330 @@ body {
   border: 0.5px solid var(--color-border);
   border-radius: 3px;
   white-space: nowrap;
+}
+
+/* ==========================================================================
+   PANIC TIMER & MODAL SYSTEM (ADHD Urgency & Glassmorphism Focus Arena)
+   ========================================================================== */
+
+/* 1. Page-level container changes when panic is active */
+.app-container.panic-active {
+  border-color: var(--color-panic-border);
+  box-shadow: 0 0 16px var(--color-panic-bg);
+}
+
+/* 2. Glassmorphic Modal Overlay */
+.panic-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(9, 9, 11, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 24px;
+  animation: fadeInOverlay 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+html.light .panic-modal-overlay {
+  background-color: rgba(255, 255, 255, 0.72);
+}
+
+.panic-modal-container {
+  width: 100%;
+  max-width: 600px;
+  background-color: var(--color-card-bg);
+  border: 0.5px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 48px);
+  max-height: 700px;
+  overflow: hidden;
+  animation: scaleUpModal 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Glow when critical or overtime */
+.panic-modal-overlay.critical .panic-modal-container {
+  border-color: var(--color-panic-border);
+  box-shadow: 0 24px 64px rgba(239, 68, 68, 0.15), 0 0 0 1px var(--color-panic-border);
+  animation: criticalGlowPulse 1.5s infinite alternate ease-in-out;
+}
+
+.panic-modal-overlay.overtime .panic-modal-container {
+  border-color: var(--color-panic);
+  box-shadow: 0 24px 64px rgba(239, 68, 68, 0.25), 0 0 0 2px var(--color-panic);
+  animation: warningFlash 2s infinite ease-in-out;
+}
+
+/* 3. Modal Header */
+.panic-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 0.5px solid var(--color-border);
+}
+
+.panic-modal-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--color-panic);
+  background-color: var(--color-panic-bg);
+  border: 0.5px solid var(--color-panic-border);
+  padding: 2px 8px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panic-modal-minimize-btn {
+  background: transparent;
+  border: 0.5px solid var(--color-border);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+.panic-modal-minimize-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-text);
+  background-color: var(--color-surface);
+}
+
+/* 4. Visual Timer Display */
+.panic-modal-visual-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px 16px;
+  text-align: center;
+}
+
+.panic-modal-clock-wrapper {
+  margin-bottom: 8px;
+}
+
+.panic-modal-clock {
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.1));
+}
+
+.panic-modal-clock .clock-face {
+  stroke-width: 1;
+}
+
+.panic-modal-clock .second-hand.panic-hand {
+  stroke: var(--color-panic);
+  stroke-width: 1.2;
+}
+
+.panic-modal-digital {
+  font-family: var(--font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.panic-modal-digital.critical-text {
+  color: var(--color-panic);
+}
+
+.panic-modal-task-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text);
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 5. Split Panels (Todos & Log Feed) */
+.panic-modal-panels {
+  flex-grow: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 0.5px solid var(--color-border);
+  border-bottom: 0.5px solid var(--color-border);
+  min-height: 0; /* needed for flex grid scrolling */
+}
+
+.panic-modal-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.panic-modal-panel:first-child {
+  border-right: 0.5px solid var(--color-border);
+}
+
+/* Panel Scrollbars */
+.panic-modal-panel {
+  --scrollbar-thumb: var(--color-border);
+  --scrollbar-track: transparent;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.panic-modal-todos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panic-modal-notes {
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.panic-modal-empty {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+  line-height: 1.5;
+  margin: auto;
+  text-align: center;
+  max-width: 200px;
+}
+
+/* 6. Footer Command Input area */
+.panic-modal-input-area {
+  position: relative;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--color-surface);
+}
+
+/* 7. Subtle Dashboard Elements */
+.panic-active-badge {
+  border-color: var(--color-panic-border) !important;
+  background-color: var(--color-panic-bg) !important;
+}
+
+.panic-critical-pulse {
+  background-color: var(--color-panic) !important;
+  animation: pulse 1s infinite ease-in-out !important;
+}
+
+/* Ticking Red hand in Floating Clock */
+.clock-hand.second-hand.panic-hand {
+  stroke: var(--color-panic) !important;
+}
+
+/* Floating Timer states */
+.floating-timer-box.panic-pulse {
+  border-color: var(--color-panic-border) !important;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.18), 0 8px 32px 0 rgba(0, 0, 0, 0.12) !important;
+  animation: criticalPulseBox 1s infinite alternate ease-in-out;
+}
+
+.floating-timer-box.panic-overtime {
+  border-color: var(--color-panic) !important;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.28), 0 8px 32px 0 rgba(0, 0, 0, 0.12) !important;
+}
+
+/* 8. Panic status banner on dashboard */
+.panic-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background-color: var(--color-panic-bg);
+  border: 0.5px solid var(--color-panic-border);
+  border-radius: 4px;
+  margin-bottom: 16px;
+  animation: slideInBanner 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.panic-banner.panic-critical {
+  border-color: var(--color-panic);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.1);
+}
+
+.panic-banner-icon {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.panic-banner-text {
+  font-size: 12px;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+/* Keyframe Animations */
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUpModal {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes criticalGlowPulse {
+  0% {
+    box-shadow: 0 24px 64px rgba(239, 68, 68, 0.15), 0 0 0 1px var(--color-panic-border);
+  }
+  100% {
+    box-shadow: 0 24px 64px rgba(239, 68, 68, 0.25), 0 0 10px 2px rgba(239, 68, 68, 0.2);
+  }
+}
+
+@keyframes warningFlash {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 24px 64px rgba(239, 68, 68, 0.25), 0 0 0 2px var(--color-panic);
+  }
+  50% {
+    box-shadow: 0 24px 64px rgba(239, 68, 68, 0.15), 0 0 0 1px var(--color-panic-border);
+  }
+}
+
+@keyframes criticalPulseBox {
+  0% {
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.12), 0 8px 32px 0 rgba(0, 0, 0, 0.12);
+  }
+  100% {
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.25), 0 8px 32px 0 rgba(0, 0, 0, 0.12), 0 0 4px 1px rgba(239, 68, 68, 0.15);
+  }
+}
+
+@keyframes slideInBanner {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
