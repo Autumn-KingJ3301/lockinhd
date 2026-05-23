@@ -1,4 +1,4 @@
-import type { Session, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend } from "../types";
+import type { Session, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask } from "../types";
 import { firebaseApiService } from "./firebaseService";
 
 export interface LockinData {
@@ -19,6 +19,8 @@ export interface LockinData {
   activeTriageIndex: number;
   activeArchiveId?: string | null;
   activeArchiveLabel?: string | null;
+  callbacks?: CallbackTask[];
+  schedules?: CallbackTask[];
 }
 
 export interface IApiService {

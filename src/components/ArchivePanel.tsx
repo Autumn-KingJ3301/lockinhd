@@ -25,13 +25,11 @@ function formatArchiveDate(ts: number) {
 
 const ArchiveDrawer: React.FC<{
   archive: Archive;
-  onClose: () => void;
   onRestore: () => void;
-}> = ({ archive, onClose, onRestore }) => (
+}> = ({ archive, onRestore }) => (
   <div className="archive-drawer">
     <div className="archive-drawer-header">
       <span className="archive-drawer-title">{archive.label}</span>
-      <button className="delete-btn" onClick={onClose}>×</button>
     </div>
     <div className="archive-drawer-body">
       {/* Sessions */}
@@ -288,7 +286,6 @@ export const ArchivePanel: React.FC = () => {
                       {isOpen && (
                         <ArchiveDrawer
                           archive={archive}
-                          onClose={() => setOpenDrawer(null)}
                           onRestore={() => handleRestore(archive.id)}
                         />
                       )}

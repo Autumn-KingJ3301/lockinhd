@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useLockinStore } from "../store/useLockinStore";
 import { apiService, type LockinData } from "../services/apiService";
-import type { Note, TodoItem, Session, SessionRevision } from "../types";
+import type { Note, TodoItem, Session, SessionRevision, CallbackTask } from "../types";
 
 function isArrayEqual<T>(a: T[], b: T[], itemEqual: (x: T, y: T) => boolean): boolean {
   if (a.length !== b.length) return false;
@@ -54,6 +54,10 @@ function isSessionEqual(a: Session | null, b: Session | null): boolean {
   );
 }
 
+function isCallbackEqual(a: CallbackTask, b: CallbackTask): boolean {
+  return a.id === b.id && a.task === b.task && a.duration === b.duration && a.scheduledTime === b.scheduledTime;
+}
+
 function isDataEqual(a: LockinData, b: LockinData): boolean {
   return (
     a.mode === b.mode &&
@@ -70,6 +74,8 @@ function isDataEqual(a: LockinData, b: LockinData): boolean {
     isArrayEqual(a.idleSidetracks || [], b.idleSidetracks || [], (x, y) => x === y) &&
     isArrayEqual(a.triageSidetracks || [], b.triageSidetracks || [], (x, y) => x === y) &&
     isArrayEqual(a.queue || [], b.queue || [], (x, y) => x.id === y.id && x.text === y.text) &&
+    isArrayEqual(a.callbacks || [], b.callbacks || [], isCallbackEqual) &&
+    isArrayEqual(a.schedules || [], b.schedules || [], isCallbackEqual) &&
     isSessionEqual(a.session, b.session) &&
     isSessionEqual(a.wrapData, b.wrapData) &&
     isArrayEqual(a.sessions || [], b.sessions || [], isSessionEqual)
@@ -173,6 +179,8 @@ export const useCloudSync = () => {
         activeTriageIndex: state.activeTriageIndex,
         activeArchiveId: state.activeArchiveId,
         activeArchiveLabel: state.activeArchiveLabel,
+        callbacks: state.callbacks,
+        schedules: state.schedules,
       };
 
       // Skip sync if values are equal to what we already saved/queued

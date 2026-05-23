@@ -10,6 +10,9 @@ import { Toolbar } from "../components/Toolbar";
 import { HistoryPanel } from "../components/HistoryPanel";
 import { InboxPanel } from "../components/InboxPanel";
 import { TasksPanel } from "../components/TasksPanel";
+import { CallbacksPanel } from "../components/CallbacksPanel";
+import { SchedulesPanel } from "../components/SchedulesPanel";
+import { RecurrenceModal } from "../components/RecurrenceModal";
 import { CoreLockin } from "../components/CoreLockin";
 import { FloatingTimer } from "../components/FloatingTimer";
 import { PanicModal } from "../components/PanicModal";
@@ -83,12 +86,21 @@ export const Home = () => {
   const setPanicTimer = useLockinStore((state) => state.setPanicTimer);
   const setSessionTimer = useLockinStore((state) => state.setSessionTimer);
   const setShowPanicModal = useLockinStore((state) => state.setShowPanicModal);
+  const setShowRecurrenceModal = useLockinStore((state) => state.setShowRecurrenceModal);
   const setupStep = useLockinStore((state) => state.setupStep);
   const setupTaskName = useLockinStore((state) => state.setupTaskName);
   const initiateSessionSetup = useLockinStore((state) => state.initiateSessionSetup);
   const submitSetupEstimate = useLockinStore((state) => state.submitSetupEstimate);
   const submitSetupEnergy = useLockinStore((state) => state.submitSetupEnergy);
   const cancelSessionSetup = useLockinStore((state) => state.cancelSessionSetup);
+  const addCallback = useLockinStore((state) => state.addCallback);
+  const checkCallbacks = useLockinStore((state) => state.checkCallbacks);
+  const toggleCallbacksPanel = useLockinStore((state) => state.toggleCallbacksPanel);
+  const showCallbacksPanel = useLockinStore((state) => state.showCallbacksPanel);
+  const toggleSchedulesPanel = useLockinStore((state) => state.toggleSchedulesPanel);
+  const showSchedulesPanel = useLockinStore((state) => state.showSchedulesPanel);
+  const deleteCallbackByIndex = useLockinStore((state) => state.deleteCallbackByIndex);
+  const deleteScheduleByIndex = useLockinStore((state) => state.deleteScheduleByIndex);
   const showArchivesPanel = useLockinStore((state) => state.showArchivesPanel);
   const toggleArchivesPanel = useLockinStore((state) => state.toggleArchivesPanel);
   const setArchiveConfirmPending = useLockinStore((state) => state.setArchiveConfirmPending);
@@ -205,20 +217,16 @@ export const Home = () => {
     };
   }, [showHistoryPanel, showInboxPanel, setShowHistoryPanel, setShowInboxPanel]);
 
-  // Active Timer Effect
+  // Active Timer Effect & Callback Checker
   useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    if (mode === "active" || mode === "panic") {
-      intervalId = setInterval(() => {
+    const intervalId = setInterval(() => {
+      if (mode === "active" || mode === "panic") {
         tickElapsed();
-      }, 1000);
-    }
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
       }
-    };
-  }, [mode, tickElapsed]);
+      checkCallbacks();
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [mode, tickElapsed, checkCallbacks]);
 
   // Panic Ticks and Alarm sound effect
   useEffect(() => {
@@ -528,6 +536,89 @@ export const Home = () => {
         setToastMsg(seconds > 0 ? `Extended panic by ${formatSummaryDuration(seconds)}` : `Reduced panic by ${formatSummaryDuration(Math.abs(seconds))}`);
       } else {
         setToastMsg("Panic mode only available from idle or during a panic session.");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "callbacks") {
+      toggleCallbacksPanel();
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "schedules") {
+      toggleSchedulesPanel();
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "delete-callback") {
+      const index = parseInt(args, 10);
+      if (!isNaN(index)) {
+        deleteCallbackByIndex(index - 1);
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "delete-schedule") {
+      const index = parseInt(args, 10);
+      if (!isNaN(index)) {
+        deleteScheduleByIndex(index - 1);
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "callback") {
+      const secondsToken = tokens.find(t => t.schema?.type === "duration");
+      const seconds = parseDuration(secondsToken?.value || "2m") || 120;
+      const taskToken = tokens.find(t => t.schema?.type === "task");
+      const taskName = taskToken?.value || "Unnamed Chore";
+
+      addCallback(taskName, seconds);
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "schedule") {
+      const atToken = tokens.find(t => t.schema?.name === "at");
+      const taskToken = tokens.find(t => t.schema?.type === "task");
+      const isRecurring = input.includes("--recur");
+      const taskName = (taskToken?.value || "Scheduled Chore").replace("--recur", "").trim();
+      
+      if (atToken) {
+        // Parse time like "5pm", "17:30", "5:30pm"
+        const timeStr = atToken.value.toLowerCase();
+        const match = timeStr.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+        
+        if (match) {
+          let hours = parseInt(match[1], 10);
+          const minutes = match[2] ? parseInt(match[2], 10) : 0;
+          const ampm = match[3];
+          
+          if (ampm === "pm" && hours < 12) hours += 12;
+          if (ampm === "am" && hours === 12) hours = 0;
+          
+          const now = new Date();
+          const scheduledDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+          
+          if (scheduledDate.getTime() < now.getTime()) {
+             scheduledDate.setDate(scheduledDate.getDate() + 1);
+          }
+          
+          const taskId = Date.now();
+          // We manually call addSchedule with taskId to match the one we might use for the modal
+          useLockinStore.getState().addSchedule(taskName, 120, scheduledDate.getTime());
+          
+          if (isRecurring) {
+            useLockinStore.setState({ recurrenceModalTaskId: taskId });
+            setShowRecurrenceModal(true);
+          }
+        } else {
+          setToastMsg("Invalid time format. Use HH:MM or 5pm.");
+        }
       }
       setInput("");
       return;
@@ -862,6 +953,13 @@ export const Home = () => {
     }
   }
 
+  // Override hintText for specific commands
+  if (input.startsWith("/schedule")) {
+    hintText = "e.g., /schedule 5pm water plants --recur · formats: 5pm, 17:30, 5:30pm";
+  } else if (input.startsWith("/callback") || input.startsWith("/cb")) {
+    hintText = "e.g., /callback 5m call mom · chore starts after current session";
+  }
+
   if (loading) {
     return (
       <div className="app-container" style={{ justifyContent: "center", alignItems: "center" }}>
@@ -924,6 +1022,20 @@ export const Home = () => {
           </div>
         )}
 
+        {/* Callbacks Panel */}
+        {showCallbacksPanel && (
+          <div className={`panel-slide${zenMode ? " zen-hidden" : ""}`}>
+            <CallbacksPanel />
+          </div>
+        )}
+
+        {/* Schedules Panel */}
+        {showSchedulesPanel && (
+          <div className={`panel-slide${zenMode ? " zen-hidden" : ""}`}>
+            <SchedulesPanel />
+          </div>
+        )}
+
         {/* Archives Panel */}
         {showArchivesPanel && (
           <div className={`panel-slide${zenMode ? " zen-hidden" : ""}`}>
@@ -934,6 +1046,9 @@ export const Home = () => {
 
       {/* Panic Modal Overlay */}
       <PanicModal inputRef={inputRef} handleKeyDown={handleKeyDown} />
+
+      {/* Recurrence Modal Overlay */}
+      <RecurrenceModal />
 
       {/* Floating Timer (visible during active session) */}
       <FloatingTimer />

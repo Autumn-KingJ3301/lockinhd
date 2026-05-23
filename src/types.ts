@@ -49,6 +49,22 @@ export type QueueItem = {
 export type AppMode = "idle" | "active" | "panic" | "wrap";
 export type Theme = "system" | "light" | "dark";
 
+export type CallbackTask = {
+  id: number;
+  task: string;
+  duration: number;
+  scheduledTime?: number; // timestamp for /schedule
+  recurrence?: RecurrenceData;
+};
+
+export type RecurrenceType = "hourly" | "daily" | "weekly" | "custom_days";
+
+export type RecurrenceData = {
+  type: RecurrenceType;
+  interval?: number; // e.g. every 3 hours
+  days?: number[]; // 0-6 for Sun-Sat
+};
+
 // Archive: a dated snapshot of workspace data (sessions, queue, inbox)
 export type Archive = {
   id: string;

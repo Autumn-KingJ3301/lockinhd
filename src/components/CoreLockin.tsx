@@ -47,7 +47,6 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   // Actions
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
   const setToastMsg = useLockinStore((state) => state.setToastMsg);
-  const setShowHelp = useLockinStore((state) => state.setShowHelp);
   const setSelectedHistorySession = useLockinStore((state) => state.setSelectedHistorySession);
   const closeArchive = useLockinStore((state) => state.closeArchive);
 
@@ -237,7 +236,6 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
           <div className="help-overlay" key="help">
             <div className="help-header">
               <span className="help-title">COMMAND REFERENCE</span>
-              <button className="delete-btn" style={{ opacity: 0.7, fontSize: 16 }} onClick={() => setShowHelp(false)} title="Close help (Esc)">×</button>
             </div>
             <div className="help-body">
               <div className="help-section">

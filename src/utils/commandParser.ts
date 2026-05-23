@@ -42,6 +42,56 @@ export const commandRegistry: CommandSchema[] = [
     ]
   },
   {
+    name: "callback",
+    category: "tasks",
+    description: "Queue a chore after current session",
+    shortcuts: ["cb"],
+    args: [
+      { name: "time", type: "duration", optional: true },
+      { name: "task", type: "task", allowSpaces: true }
+    ]
+  },
+  {
+    name: "callbacks",
+    category: "nav",
+    description: "Toggle callbacks list",
+    args: []
+  },
+  {
+    name: "delete-callback",
+    category: "actions",
+    description: "Delete callback by index",
+    shortcuts: ["dc"],
+    args: [
+      { name: "index", type: "index" }
+    ]
+  },
+  {
+    name: "schedule",
+    category: "tasks",
+    description: "Schedule chore (e.g., 5pm water plants --recur)",
+    shortcuts: ["sched"],
+    args: [
+      { name: "at", type: "string" },
+      { name: "task", type: "task", allowSpaces: true }
+    ]
+  },
+  {
+    name: "schedules",
+    category: "nav",
+    description: "Toggle schedules list",
+    args: []
+  },
+  {
+    name: "delete-schedule",
+    category: "actions",
+    description: "Delete schedule by index",
+    shortcuts: ["ds"],
+    args: [
+      { name: "index", type: "index" }
+    ]
+  },
+  {
     name: "timer",
     category: "tasks",
     description: "Set an inline countdown timer",

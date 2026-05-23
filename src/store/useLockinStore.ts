@@ -1,9 +1,31 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend } from "../types";
+import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask, RecurrenceData } from "../types";
 import { playPopSound, playChimeSound, playMegaChimeSound } from "../utils/audioSynth";
 import { triggerConfetti } from "../utils/confetti";
 import { parseDuration } from "../utils/commandParser";
+
+function calculateNextRun(lastScheduled: number, recurrence: RecurrenceData): number {
+  const date = new Date(lastScheduled);
+  if (recurrence.type === "hourly") {
+    date.setHours(date.getHours() + (recurrence.interval || 1));
+  } else if (recurrence.type === "daily") {
+    date.setDate(date.getDate() + (recurrence.interval || 1));
+  } else if (recurrence.type === "weekly") {
+    date.setDate(date.getDate() + 7 * (recurrence.interval || 1));
+  } else if (recurrence.type === "custom_days" && recurrence.days && recurrence.days.length > 0) {
+    const days = [...recurrence.days].sort((a, b) => a - b);
+    const currentDay = date.getDay();
+    let nextDay = days.find(d => d > currentDay);
+    if (nextDay === undefined) {
+      nextDay = days[0];
+      date.setDate(date.getDate() + (7 - currentDay + nextDay));
+    } else {
+      date.setDate(date.getDate() + (nextDay - currentDay));
+    }
+  }
+  return date.getTime();
+}
 
 export interface LockinStoreState {
   mode: AppMode;
@@ -31,6 +53,8 @@ export interface LockinStoreState {
   selectedRevisionIndex: number | null;
   showPanicModal: boolean;
   showTasksPanel: boolean;
+  showCallbacksPanel: boolean;
+  showSchedulesPanel: boolean;
   setupTaskName: string | null;
   setupPanicLimit: number | null;
   setupStep: "idle" | "estimate" | "energy";
@@ -46,6 +70,12 @@ export interface LockinStoreState {
   pendingTrend: SessionTrend | null;
   activeArchiveId: string | null;
   activeArchiveLabel: string | null;
+  callbacks: CallbackTask[];
+  schedules: CallbackTask[];
+  callbacksInput: string;
+  schedulesInput: string;
+  showRecurrenceModal: boolean;
+  recurrenceModalTaskId: number | null;
 }
 
 export interface LockinStoreActions {
@@ -105,11 +135,28 @@ export interface LockinStoreActions {
   cancelPanicTimer: () => void;
   setShowPanicModal: (val: boolean) => void;
   setShowTasksPanel: (val: boolean) => void;
+  setShowCallbacksPanel: (val: boolean) => void;
+  toggleCallbacksPanel: () => void;
+  setShowSchedulesPanel: (val: boolean) => void;
+  toggleSchedulesPanel: () => void;
   setSessionTimer: (seconds: number, isExtension?: boolean) => void;
   initiateSessionSetup: (taskName: string, options?: { panicLimit?: number; continueSession?: Session }) => void;
   submitSetupEstimate: (estimateStr: string) => void;
   submitSetupEnergy: (energyStr: string) => void;
   cancelSessionSetup: () => void;
+  addCallback: (task: string, duration: number) => void;
+  deleteCallback: (id: number) => void;
+  deleteCallbackByIndex: (index: number) => void;
+  addSchedule: (task: string, duration: number, scheduledTime: number, id?: number) => void;
+  deleteSchedule: (id: number) => void;
+  deleteScheduleByIndex: (index: number) => void;
+  checkCallbacks: () => void;
+  setCallbacksInput: (val: string) => void;
+  setSchedulesInput: (val: string) => void;
+  addCallbackDirect: () => void;
+  addScheduleDirect: () => void;
+  setShowRecurrenceModal: (val: boolean) => void;
+  setRecurrence: (taskId: number, recurrence: RecurrenceData | undefined) => void;
   // Archive & stash actions
   createArchive: (label?: string) => Archive;
   setArchives: (archives: Archive[]) => void;
@@ -148,6 +195,7 @@ export const useLockinStore = create<LockinStore>()(
       inboxInput: "",
       theme: "system",
       isSystemDark: false,
+      callbacks: [],
       zenMode: false,
       soundEnabled: true,
       triageSidetracks: [],
@@ -156,6 +204,8 @@ export const useLockinStore = create<LockinStore>()(
       selectedRevisionIndex: null,
       showPanicModal: true,
       showTasksPanel: true,
+      showCallbacksPanel: false,
+      showSchedulesPanel: false,
       setupTaskName: null,
       setupPanicLimit: null,
       setupStep: "idle",
@@ -170,7 +220,11 @@ export const useLockinStore = create<LockinStore>()(
       pendingTrend: null,
       activeArchiveId: null,
       activeArchiveLabel: null,
-
+      schedules: [],
+      callbacksInput: "",
+      schedulesInput: "",
+      showRecurrenceModal: false,
+      recurrenceModalTaskId: null,
       // Actions
       setMode: (mode) => set({ mode }),
       setInput: (input) => set({ input }),
@@ -281,7 +335,10 @@ export const useLockinStore = create<LockinStore>()(
           });
         }
       },
-      exitWrapMode: () => set({ mode: "idle", wrapData: null, triageSidetracks: [], activeTriageIndex: 0 }),
+      exitWrapMode: () => {
+        set({ mode: "idle", wrapData: null, triageSidetracks: [], activeTriageIndex: 0, input: "" });
+        get().checkCallbacks();
+      },
 
       completeSession: () => {
         const { session, soundEnabled } = get();
@@ -674,6 +731,10 @@ export const useLockinStore = create<LockinStore>()(
       }),
       setShowPanicModal: (showPanicModal) => set({ showPanicModal }),
       setShowTasksPanel: (showTasksPanel) => set({ showTasksPanel }),
+      setShowCallbacksPanel: (showCallbacksPanel) => set({ showCallbacksPanel }),
+      toggleCallbacksPanel: () => set((state) => ({ showCallbacksPanel: !state.showCallbacksPanel })),
+      setShowSchedulesPanel: (showSchedulesPanel) => set({ showSchedulesPanel }),
+      toggleSchedulesPanel: () => set((state) => ({ showSchedulesPanel: !state.showSchedulesPanel })),
       setSessionTimer: (seconds, isExtension = false) => set((state) => {
         if (state.session) {
           const currentEnd = state.session.timerEndElapsed || state.elapsed;
@@ -763,7 +824,140 @@ export const useLockinStore = create<LockinStore>()(
           input: "",
           toastMsg: "Session setup cancelled.",
         });
+        // When setup is cancelled, we might want to check if there are other pending callbacks
+        get().checkCallbacks();
       },
+      addCallback: (task, duration) => {
+        const newCallback: CallbackTask = {
+          id: Date.now(),
+          task,
+          duration,
+        };
+        set(state => ({ callbacks: [...state.callbacks, newCallback] }));
+        set({ toastMsg: `Callback added: "${task}" will run after current session.` });
+      },
+      deleteCallback: (id) => set((state) => ({
+        callbacks: state.callbacks.filter(c => c.id !== id)
+      })),
+      deleteCallbackByIndex: (index) => set((state) => {
+        const newCallbacks = [...state.callbacks];
+        if (index >= 0 && index < newCallbacks.length) {
+          newCallbacks.splice(index, 1);
+          return { callbacks: newCallbacks };
+        }
+        return {};
+      }),
+      addSchedule: (task, duration, scheduledTime, id) => {
+        const newSchedule: CallbackTask = {
+          id: id || Date.now(),
+          task,
+          duration,
+          scheduledTime
+        };
+        set(state => ({ schedules: [...state.schedules, newSchedule] }));
+        const timeStr = new Date(scheduledTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        set({ toastMsg: `Scheduled: "${task}" at ${timeStr}` });
+      },
+      deleteSchedule: (id) => set((state) => ({
+        schedules: state.schedules.filter(s => s.id !== id)
+      })),
+      deleteScheduleByIndex: (index) => set((state) => {
+        const newSchedules = [...state.schedules];
+        if (index >= 0 && index < newSchedules.length) {
+          newSchedules.splice(index, 1);
+          return { schedules: newSchedules };
+        }
+        return {};
+      }),
+      checkCallbacks: () => {
+        const { mode, callbacks, schedules, setupStep, startPanicSession } = get();
+        if (mode !== "idle" || setupStep !== "idle") return;
+
+        // Priority:
+        // 1. Callbacks (run as soon as idle)
+        // 2. Schedules (run if due)
+
+        if (callbacks.length > 0) {
+          const callback = callbacks[0];
+          const newCallbacks = callbacks.slice(1);
+          set({ callbacks: newCallbacks });
+          startPanicSession(callback.task, callback.duration, callback.duration, 3);
+          set({ toastMsg: `Callback chore: ${callback.task}` });
+          return;
+        }
+
+        const now = Date.now();
+        const dueScheduledIdx = schedules.findIndex(s => s.scheduledTime && s.scheduledTime <= now);
+        if (dueScheduledIdx !== -1) {
+          const schedule = schedules[dueScheduledIdx];
+          const newSchedules = [...schedules];
+          
+          if (schedule.recurrence) {
+            // Reschedule
+            const nextTime = calculateNextRun(schedule.scheduledTime!, schedule.recurrence);
+            newSchedules[dueScheduledIdx] = { ...schedule, scheduledTime: nextTime };
+          } else {
+            // Remove
+            newSchedules.splice(dueScheduledIdx, 1);
+          }
+          
+          set({ schedules: newSchedules });
+          startPanicSession(schedule.task, schedule.duration, schedule.duration, 3);
+          set({ toastMsg: `Forced chore: ${schedule.task}` });
+        }
+      },
+      setCallbacksInput: (callbacksInput) => set({ callbacksInput }),
+      setSchedulesInput: (schedulesInput) => set({ schedulesInput }),
+      addCallbackDirect: () => {
+        const { callbacksInput, addCallback } = get();
+        if (!callbacksInput.trim()) return;
+        
+        const parts = callbacksInput.trim().split(" ");
+        const firstPart = parts[0];
+        const duration = parseDuration(firstPart);
+        if (duration && duration > 0) {
+          addCallback(parts.slice(1).join(" ") || "Unnamed Callback", duration);
+        } else {
+          addCallback(callbacksInput.trim(), 120); 
+        }
+        set({ callbacksInput: "" });
+      },
+      addScheduleDirect: () => {
+        const { schedulesInput, addSchedule } = get();
+        if (!schedulesInput.trim()) return;
+        
+        const parts = schedulesInput.trim().split(" ");
+        const timeStr = parts[0].toLowerCase();
+        const match = timeStr.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+        
+        if (match) {
+          let hours = parseInt(match[1], 10);
+          const minutes = match[2] ? parseInt(match[2], 10) : 0;
+          const ampm = match[3];
+          
+          if (ampm === "pm" && hours < 12) hours += 12;
+          if (ampm === "am" && hours === 12) hours = 0;
+          
+          const now = new Date();
+          const scheduledDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+          if (scheduledDate.getTime() < now.getTime()) {
+            scheduledDate.setDate(scheduledDate.getDate() + 1);
+          }
+          
+          const taskName = parts.slice(1).join(" ") || "Scheduled Chore";
+          addSchedule(taskName, 120, scheduledDate.getTime());
+          set({ schedulesInput: "" });
+        } else {
+          set({ toastMsg: "Invalid time format. Use HH:MM or 5pm." });
+        }
+      },
+      setShowRecurrenceModal: (showRecurrenceModal) => set({ showRecurrenceModal }),
+      setRecurrence: (taskId, recurrence) => set((state) => {
+        const newSchedules = state.schedules.map(s => 
+          s.id === taskId ? { ...s, recurrence } : s
+        );
+        return { schedules: newSchedules };
+      }),
     }),
     {
       name: "lockin-store-state",
@@ -786,6 +980,10 @@ export const useLockinStore = create<LockinStore>()(
         stash: state.stash,
         activeArchiveId: state.activeArchiveId,
         activeArchiveLabel: state.activeArchiveLabel,
+        callbacks: state.callbacks,
+        schedules: state.schedules,
+        showCallbacksPanel: state.showCallbacksPanel,
+        showSchedulesPanel: state.showSchedulesPanel,
       }),
     }
   )
