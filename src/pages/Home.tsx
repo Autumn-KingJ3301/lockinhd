@@ -215,6 +215,9 @@ export const Home = () => {
         e.preventDefault();
         setShowTasksPanel(!showTasksPanel);
       }
+      if (e.key === "Escape" && showTraceInline) {
+        toggleTrace(false);
+      }
     };
     window.addEventListener("keydown", handleShortcuts);
     return () => {
@@ -520,8 +523,35 @@ export const Home = () => {
     }
   };
 
+  const showTraceInline = useLockinStore((state) => state.showTraceInline);
+  const toggleTrace = useLockinStore((state) => state.toggleTrace);
+
   const executeCommand = (schema: any, tokens: any[], args: string) => {
     const cmdName = schema.name;
+
+    if (cmdName === "trace") {
+      toggleTrace(true);
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "trace-resume") {
+      if (sessions.length > 0) {
+        const lastSession = sessions[sessions.length - 1];
+        initiateSessionSetup(lastSession.task, { continueSession: lastSession });
+        toggleTrace(false);
+      } else {
+        setToastMsg("No history to resume.");
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "trace-clear") {
+      toggleTrace(false);
+      setInput("");
+      return;
+    }
 
     if (cmdName === "panic") {
       const secondsToken = tokens.find(t => t.schema?.type === "duration");

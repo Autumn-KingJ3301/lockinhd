@@ -313,6 +313,27 @@ export const commandRegistry: CommandSchema[] = [
     args: []
   },
   {
+    name: "trace",
+    category: "nav",
+    description: "Recall last session's state and breadcrumbs",
+    shortcuts: ["tr"],
+    args: []
+  },
+  {
+    name: "trace-resume",
+    category: "actions",
+    description: "Instantly resume the last traced session",
+    shortcuts: ["tr-r", "tr-res"],
+    args: []
+  },
+  {
+    name: "trace-clear",
+    category: "actions",
+    description: "Close the trace overlay",
+    shortcuts: ["tr-c", "tr-cl"],
+    args: []
+  },
+  {
     name: "close-archive",
     category: "actions",
     description: "Close active archive and restore workspace",

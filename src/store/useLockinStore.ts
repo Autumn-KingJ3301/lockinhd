@@ -76,6 +76,7 @@ export interface LockinStoreState {
   schedulesInput: string;
   showRecurrenceModal: boolean;
   recurrenceModalTaskId: number | null;
+  showTraceInline: boolean;
 }
 
 export interface LockinStoreActions {
@@ -160,6 +161,7 @@ export interface LockinStoreActions {
   addScheduleDirect: () => void;
   setShowRecurrenceModal: (val: boolean) => void;
   setRecurrence: (taskId: number, recurrence: RecurrenceData | undefined) => void;
+  toggleTrace: (val?: boolean) => void;
   // Archive & stash actions
   createArchive: (label?: string) => Archive;
   setArchives: (archives: Archive[]) => void;
@@ -228,6 +230,7 @@ export const useLockinStore = create<LockinStore>()(
       schedulesInput: "",
       showRecurrenceModal: false,
       recurrenceModalTaskId: null,
+      showTraceInline: false,
       // Actions
       setMode: (mode) => set({ mode }),
       setInput: (input) => set({ input }),
@@ -1136,6 +1139,9 @@ export const useLockinStore = create<LockinStore>()(
         );
         return { schedules: newSchedules };
       }),
+      toggleTrace: (val) => set((state) => ({ 
+        showTraceInline: val !== undefined ? val : !state.showTraceInline 
+      })),
     }),
     {
       name: "lockin-store-state",
