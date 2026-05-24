@@ -101,40 +101,17 @@ class FirebaseApiService implements IApiService {
     return snap.docs.map((d) => d.data() as SessionTrend);
   }
 
-  // ─── Journals ─────────────────────────────────────────────────────────────
-
-  async saveJournalEntry(userId: string, journal: JournalEntry): Promise<void> {
-    const docRef = doc(db, "users", userId, "journals", journal.id);
-    
-    // Strip large base64 data url from photos and voiceMemos for cloud saving
-    const cleanedJournal = {
-      ...journal,
-      photos: journal.photos?.map(({ id, name }) => ({
-        id,
-        name,
-        hasLocalData: true
-      })) || [],
-      voiceMemos: journal.voiceMemos?.map(({ id, label, duration }) => ({
-        id,
-        label,
-        duration,
-        hasLocalData: true
-      })) || []
-    };
-
-    const sanitized = this.sanitizeData(cleanedJournal) as Record<string, unknown>;
-    await setDoc(docRef, sanitized);
+  async saveJournalEntry(_userId: string, _journal: JournalEntry): Promise<void> {
+    // No-op: Saved automatically inside root user doc (LockinData.journals) via debounced cloud sync
   }
 
-  async loadJournalEntries(userId: string): Promise<JournalEntry[]> {
-    const col = collection(db, "users", userId, "journals");
-    const q = query(col, orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => d.data() as JournalEntry);
+  async loadJournalEntries(_userId: string): Promise<JournalEntry[]> {
+    // No-op: Loaded automatically inside loadUserData via LockinData.journals
+    return [];
   }
 
-  async deleteJournalEntry(userId: string, journalId: string): Promise<void> {
-    await deleteDoc(doc(db, "users", userId, "journals", journalId));
+  async deleteJournalEntry(_userId: string, _journalId: string): Promise<void> {
+    // No-op: Synced automatically via debounced cloud sync
   }
 }
 

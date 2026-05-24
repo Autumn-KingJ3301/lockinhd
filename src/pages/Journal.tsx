@@ -638,89 +638,216 @@ export const Journal: React.FC = () => {
         }
 
         .focus-snapshot-widget {
-          border: var(--theme-border-width, 0.5px) solid var(--color-border);
-          border-radius: 8px;
-          background-color: var(--color-surface);
+          border: 1px solid var(--color-accent-border);
+          border-radius: 12px;
+          background: var(--color-accent-bg);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+          backdrop-filter: blur(10px);
           overflow: hidden;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        .focus-snapshot-widget:hover {
+          border-color: var(--color-accent);
+          box-shadow: 0 8px 30px var(--color-accent-bg);
         }
 
         .snapshot-header {
-          padding: 10px 14px;
+          padding: 14px 20px;
           display: flex;
           justify-content: space-between;
           align-items: center;
           cursor: pointer;
-          background-color: var(--color-bg);
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--color-muted);
-          letter-spacing: 0.05em;
-          border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
-        }
-
-        .snapshot-stats-row {
-          display: flex;
-          gap: 16px;
-          padding: 12px 14px;
-          border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
-          font-size: 11px;
           background-color: var(--color-card-bg);
-        }
-
-        .snapshot-stat-item {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .snapshot-stat-val {
+          font-family: var(--font-sans);
+          font-size: 12px;
           font-weight: 700;
-          color: var(--color-accent);
+          letter-spacing: 0.05em;
+          color: var(--color-text);
+          border-bottom: 0.5px solid var(--color-border);
+        }
+
+        .snapshot-narrative-box {
+          padding: 20px;
+          border-bottom: 0.5px dashed var(--color-border);
+          background-color: var(--color-card-bg);
           font-size: 13px;
+          line-height: 1.6;
+          color: var(--color-text);
+        }
+
+        .snapshot-narrative-box p {
+          opacity: 0.9;
+        }
+
+        .snapshot-narrative-box strong {
+          color: var(--color-accent);
+          font-weight: 700;
         }
 
         .snapshot-details-list {
-          padding: 12px 14px;
+          padding: 20px;
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          max-height: 200px;
+          gap: 20px;
+          max-height: 380px;
           overflow-y: auto;
           background-color: var(--color-card-bg);
         }
 
-        .snapshot-detail-item {
-          border-left: 2px solid var(--color-accent-border);
-          padding-left: 8px;
+        .artifact-timeline {
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 24px;
+          position: relative;
         }
 
-        .snapshot-detail-title {
+        .artifact-node {
+          display: flex;
+          gap: 16px;
+          position: relative;
+        }
+
+        .artifact-line {
+          position: absolute;
+          left: 15px;
+          top: 32px;
+          bottom: -28px;
+          width: 1px;
+          background-color: var(--color-border);
+        }
+
+        .artifact-node:last-child .artifact-line {
+          display: none;
+        }
+
+        .artifact-dot {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background-color: var(--color-card-bg);
+          border: 1px solid var(--color-accent);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: var(--font-mono);
           font-size: 12px;
-          font-weight: 600;
+          font-weight: 700;
+          color: var(--color-accent);
+          z-index: 1;
+          flex-shrink: 0;
+          box-shadow: 0 0 10px var(--color-accent-bg);
+        }
+
+        .artifact-node-content {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding-top: 4px;
+          flex-grow: 1;
+        }
+
+        .artifact-node-header {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .artifact-node-title {
+          font-size: 13.5px;
+          font-weight: 700;
           color: var(--color-text);
         }
 
-        .snapshot-detail-notes {
+        .artifact-node-duration {
           font-family: var(--font-mono);
-          font-size: 10px;
+          font-size: 10.5px;
           color: var(--color-muted);
+        }
+
+        .artifact-notes-container {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
           margin-top: 2px;
+        }
+
+        .artifact-note-bubble {
+          background-color: var(--color-surface);
+          border: 0.5px solid var(--color-border);
+          border-radius: 6px;
+          padding: 8px 12px;
+          font-size: 12px;
+          line-height: 1.5;
+          color: var(--color-text);
+          font-style: italic;
+          opacity: 0.95;
+          position: relative;
+        }
+
+        .artifact-tags-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 4px;
+        }
+
+        .artifact-todo-tag {
+          font-size: 10.5px;
+          padding: 2px 8px;
+          border-radius: 4px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-family: var(--font-sans);
+          font-weight: 500;
+        }
+
+        .artifact-todo-tag.completed {
+          background-color: var(--color-success-bg);
+          border: 0.5px solid var(--color-success);
+          color: var(--color-success);
+        }
+
+        .artifact-todo-tag.pending {
+          background-color: var(--color-surface);
+          border: 0.5px solid var(--color-border);
+          color: var(--color-muted);
+          opacity: 0.8;
+        }
+
+        .artifact-sidetrack-badge {
+          font-size: 10.5px;
+          padding: 2px 8px;
+          border-radius: 4px;
+          background-color: rgba(245, 158, 11, 0.08);
+          border: 0.5px solid rgba(245, 158, 11, 0.3);
+          color: var(--color-accent);
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
         }
 
         .journal-textarea {
           width: 100%;
-          min-height: 180px;
+          min-height: 220px;
           flex-grow: 1;
           background: transparent;
           border: none;
           outline: none;
           color: var(--color-text);
           font-family: var(--font-sans);
-          font-size: 14px;
-          line-height: 1.6;
+          font-size: 14.5px;
+          line-height: 1.7;
           resize: none;
+          border-left: 2px solid var(--color-border);
+          padding-left: 16px;
+          transition: border-left-color 0.2s;
+        }
+
+        .journal-textarea:focus {
+          border-left-color: var(--color-accent-border);
         }
 
         .journal-textarea::placeholder {
@@ -1091,84 +1218,109 @@ export const Journal: React.FC = () => {
 
               {/* Editor Workspace */}
               <div className="journal-editor-body">
-                {/* Expandable Auto Summary section */}
+                {/* Expandable Focus Artifact Card */}
                 <div className="focus-snapshot-widget">
                   <div
                     className="snapshot-header"
                     onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
                   >
-                    <span>📊 AUTOMATIC FOCUS SNAPSHOT — {activeEntry.date}</span>
-                    <span>{isSummaryExpanded ? "▲ HIDE" : "▼ SHOW"}</span>
+                    <span>✦ MY FOCUS BLUEPRINT — {new Date(activeEntry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                    <span>{isSummaryExpanded ? "▲ HIDE ARTIFACT" : "▼ VIEW ARTIFACT"}</span>
                   </div>
 
                   {isSummaryExpanded && (
                     <>
-                      <div className="snapshot-stats-row">
-                        <div className="snapshot-stat-item">
-                          <span className="hint-text" style={{ fontSize: "8px" }}>FOCUS SESSIONS</span>
-                          <span className="snapshot-stat-val">
-                            {activeEntry.sessionsSnapshot?.length || 0}
-                          </span>
-                        </div>
-                        <div className="snapshot-stat-item">
-                          <span className="hint-text" style={{ fontSize: "8px" }}>TOTAL FOCUS TIME</span>
-                          <span className="snapshot-stat-val">
-                            {formatSummaryDuration(calculateTotalFocusTime(activeEntry.sessionsSnapshot))}
-                          </span>
-                        </div>
-                        <div className="snapshot-stat-item">
-                          <span className="hint-text" style={{ fontSize: "8px" }}>CAPTURED SIDETRACKS</span>
-                          <span className="snapshot-stat-val">
-                            {activeEntry.idleSidetracksSnapshot?.length || 0}
-                          </span>
-                        </div>
+                      <div className="snapshot-narrative-box">
+                        <p>
+                          On this day, I dedicated <strong>
+                            {(() => {
+                              const totalSeconds = calculateTotalFocusTime(activeEntry.sessionsSnapshot);
+                              const hours = Math.floor(totalSeconds / 3600);
+                              const minutes = Math.floor((totalSeconds % 3600) / 60);
+                              if (hours === 0 && minutes === 0) return "less than a minute";
+                              const hourPart = hours > 0 ? `${hours} hour${hours > 1 ? "s" : ""}` : "";
+                              const minutePart = minutes > 0 ? `${minutes} minute${minutes > 1 ? "s" : ""}` : "";
+                              if (hourPart && minutePart) return `${hourPart} and ${minutePart}`;
+                              return hourPart || minutePart;
+                            })()}
+                          </strong> of deep focus toward my objectives. I completed <strong>{activeEntry.sessionsSnapshot?.length || 0}</strong> focus blocks, checked off <strong>{activeEntry.sessionsSnapshot?.reduce((acc, s) => acc + (s.todos?.filter(t => t.completed).length || 0), 0) || 0}</strong> subtasks, and captured <strong>{(activeEntry.sessionsSnapshot?.reduce((acc, s) => acc + (s.sidetracks?.length || 0), 0) || 0) + (activeEntry.idleSidetracksSnapshot?.length || 0)}</strong> ideas along the way.
+                        </p>
                       </div>
 
                       <div className="snapshot-details-list">
                         {!activeEntry.sessionsSnapshot || activeEntry.sessionsSnapshot.length === 0 ? (
-                          <div className="hint-text" style={{ padding: "8px 0" }}>
-                            No sessions completed on this date. Use "Refresh Snapshot" to pull current data.
+                          <div className="hint-text" style={{ padding: "8px 0", textAlign: "center" }}>
+                            No focus logs recorded for this day. Click "Refresh Snapshot" to capture current workspace progress.
                           </div>
                         ) : (
-                          activeEntry.sessionsSnapshot.map((s, idx) => (
-                            <div key={idx} className="snapshot-detail-item">
-                              <span className="snapshot-detail-title">
-                                {idx + 1}. {s.task} ({formatSummaryDuration(s.duration || 0)})
-                              </span>
-                              {s.notes && s.notes.length > 0 && (
-                                <div className="snapshot-detail-notes">
-                                  {s.notes.map((n, i) => (
-                                    <div key={i}>
-                                      • {n.text}
+                          <div className="artifact-timeline">
+                            {activeEntry.sessionsSnapshot.map((s, idx) => (
+                              <div key={idx} className="artifact-node">
+                                <div className="artifact-line"></div>
+                                <div className="artifact-dot">{idx + 1}</div>
+                                <div className="artifact-node-content">
+                                  <div className="artifact-node-header">
+                                    <span className="artifact-node-title">{s.task}</span>
+                                    <span className="artifact-node-duration">
+                                      · {formatSummaryDuration(s.duration || 0)} spent
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Notes Feed */}
+                                  {s.notes && s.notes.length > 0 && (
+                                    <div className="artifact-notes-container">
+                                      {s.notes.map((n, i) => (
+                                        <div key={i} className="artifact-note-bubble">
+                                          “ {n.text} ”
+                                        </div>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-                              {s.sidetracks && s.sidetracks.length > 0 && (
-                                <div className="snapshot-detail-notes" style={{ color: "var(--color-accent)" }}>
-                                  {s.sidetracks.map((st, i) => (
-                                    <div key={i}>
-                                      💡 Sidetrack: {st}
+                                  )}
+                                  
+                                  {/* Checklists */}
+                                  {s.todos && s.todos.length > 0 && (
+                                    <div className="artifact-tags-container">
+                                      {s.todos.map((todo, i) => (
+                                        <span key={i} className={`artifact-todo-tag ${todo.completed ? "completed" : "pending"}`}>
+                                          {todo.completed ? "✓" : "○"} {todo.text}
+                                        </span>
+                                      ))}
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))
-                        )}
+                                  )}
 
-                        {activeEntry.idleSidetracksSnapshot && activeEntry.idleSidetracksSnapshot.length > 0 && (
-                          <div className="snapshot-detail-item" style={{ borderLeftColor: "var(--color-muted)" }}>
-                            <span className="snapshot-detail-title" style={{ color: "var(--color-muted)" }}>
-                              Braindump Sidetracks
-                            </span>
-                            <div className="snapshot-detail-notes">
-                              {activeEntry.idleSidetracksSnapshot.map((st, i) => (
-                                <div key={i}>
-                                  💡 {st}
+                                  {/* Sidetracks */}
+                                  {s.sidetracks && s.sidetracks.length > 0 && (
+                                    <div className="artifact-tags-container">
+                                      {s.sidetracks.map((st, i) => (
+                                        <span key={i} className="artifact-sidetrack-badge">
+                                          💡 {st}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            ))}
+
+                            {activeEntry.idleSidetracksSnapshot && activeEntry.idleSidetracksSnapshot.length > 0 && (
+                              <div className="artifact-node" style={{ opacity: 0.85 }}>
+                                <div className="artifact-dot" style={{ borderColor: "var(--color-muted)", color: "var(--color-muted)" }}>💡</div>
+                                <div className="artifact-node-content">
+                                  <div className="artifact-node-header">
+                                    <span className="artifact-node-title" style={{ color: "var(--color-muted)" }}>
+                                      Braindump & Inbox Discoveries
+                                    </span>
+                                  </div>
+                                  <div className="artifact-tags-container">
+                                    {activeEntry.idleSidetracksSnapshot.map((st, i) => (
+                                      <span key={i} className="artifact-sidetrack-badge" style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}>
+                                        💡 {st}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

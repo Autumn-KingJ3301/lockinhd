@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask, RecurrenceData, JournalEntry } from "../types";
-import { apiService } from "../services/apiService";
 import { useAuthStore } from "./useAuthStore";
 import { playPopSound, playChimeSound, playMegaChimeSound } from "../utils/audioSynth";
 import { triggerConfetti } from "../utils/confetti";
@@ -1163,13 +1162,7 @@ export const useLockinStore = create<LockinStore>()(
 
         const user = useAuthStore.getState().user;
         if (user) {
-          try {
-            await apiService.saveJournalEntry(user.uid, entry);
-            set({ toastMsg: "Reflection saved to cloud ✓" });
-          } catch (e) {
-            console.error("Cloud save failed:", e);
-            set({ toastMsg: "Saved locally. Cloud sync failed." });
-          }
+          set({ toastMsg: "Reflection saved. Syncing to cloud..." });
         } else {
           set({ toastMsg: "Saved locally (not logged in)." });
         }
@@ -1180,12 +1173,9 @@ export const useLockinStore = create<LockinStore>()(
 
         const user = useAuthStore.getState().user;
         if (user) {
-          try {
-            await apiService.deleteJournalEntry(user.uid, id);
-            set({ toastMsg: "Reflection deleted from cloud." });
-          } catch (e) {
-            console.error("Cloud delete failed:", e);
-          }
+          set({ toastMsg: "Reflection deleted. Syncing to cloud..." });
+        } else {
+          set({ toastMsg: "Reflection deleted locally." });
         }
       },
       setJournals: (journals) => set({ journals }),

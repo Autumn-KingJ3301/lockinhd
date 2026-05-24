@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useLockinStore } from "../store/useLockinStore";
 import { apiService, type LockinData } from "../services/apiService";
-import type { Note, TodoItem, Session, SessionRevision, CallbackTask } from "../types";
+import type { Note, TodoItem, Session, SessionRevision, CallbackTask, JournalEntry } from "../types";
 
 function isArrayEqual<T>(a: T[], b: T[], itemEqual: (x: T, y: T) => boolean): boolean {
   if (a.length !== b.length) return false;
@@ -58,6 +58,16 @@ function isCallbackEqual(a: CallbackTask, b: CallbackTask): boolean {
   return a.id === b.id && a.task === b.task && a.duration === b.duration && a.scheduledTime === b.scheduledTime;
 }
 
+function isJournalEntryEqual(a: JournalEntry, b: JournalEntry): boolean {
+  return (
+    a.id === b.id &&
+    a.createdAt === b.createdAt &&
+    a.date === b.date &&
+    a.title === b.title &&
+    a.content === b.content
+  );
+}
+
 function isDataEqual(a: LockinData, b: LockinData): boolean {
   return (
     a.mode === b.mode &&
@@ -78,7 +88,8 @@ function isDataEqual(a: LockinData, b: LockinData): boolean {
     isArrayEqual(a.schedules || [], b.schedules || [], isCallbackEqual) &&
     isSessionEqual(a.session, b.session) &&
     isSessionEqual(a.wrapData, b.wrapData) &&
-    isArrayEqual(a.sessions || [], b.sessions || [], isSessionEqual)
+    isArrayEqual(a.sessions || [], b.sessions || [], isSessionEqual) &&
+    isArrayEqual(a.journals || [], b.journals || [], isJournalEntryEqual)
   );
 }
 
@@ -90,7 +101,6 @@ export const useCloudSync = () => {
   const setArchivesLoading = useLockinStore((state) => state.setArchivesLoading);
   const setStash = useLockinStore((state) => state.setStash);
   const clearPendingTrend = useLockinStore((state) => state.clearPendingTrend);
-  const setJournals = useLockinStore((state) => state.setJournals);
   const setJournalsLoading = useLockinStore((state) => state.setJournalsLoading);
 
   // Use a ref to prevent saving data that was just loaded
@@ -119,10 +129,6 @@ export const useCloudSync = () => {
           if (stash) {
             setStash(stash);
           }
-
-          // Load journals
-          const journals = await apiService.loadJournalEntries(user.uid);
-          setJournals(journals);
         } catch (error) {
           console.error("Failed to load user data from cloud:", error);
         } finally {
@@ -138,7 +144,7 @@ export const useCloudSync = () => {
     } else if (initialized && !user) {
       isInitialLoad.current = true;
     }
-  }, [user, initialized, setCloudData, setArchives, setArchivesLoading, setStash, setJournals, setJournalsLoading]);
+  }, [user, initialized, setCloudData, setArchives, setArchivesLoading, setStash, setJournalsLoading]);
 
   // Watch for pendingTrend and write to Firestore immediately
   useEffect(() => {
@@ -189,6 +195,7 @@ export const useCloudSync = () => {
         activeArchiveLabel: state.activeArchiveLabel,
         callbacks: state.callbacks,
         schedules: state.schedules,
+        journals: state.journals,
       };
 
       // Skip sync if values are equal to what we already saved/queued

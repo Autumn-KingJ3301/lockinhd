@@ -21,6 +21,7 @@ export interface LockinData {
   activeArchiveLabel?: string | null;
   callbacks?: CallbackTask[];
   schedules?: CallbackTask[];
+  journals?: JournalEntry[];
 }
 
 export interface IApiService {
