@@ -1,3 +1,6 @@
+import { useThemeStore } from "../store/useThemeStore";
+import type { ThemeConfig } from "../themes/types";
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext | null {
@@ -197,4 +200,94 @@ export function playMegaChimeSound() {
     }
   });
 }
+
+function playSequence(seq: { type: any; notes: number[]; durations: number[]; delays: number[]; gain: number }) {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  if (ctx.state === "suspended") {
+    ctx.resume();
+  }
+
+  const now = ctx.currentTime;
+  seq.notes.forEach((freq: number, idx: number) => {
+    const noteDuration = seq.durations[idx];
+    const delay = seq.delays[idx];
+    const startTime = now + delay;
+
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc.type = seq.type;
+    osc.frequency.setValueAtTime(freq, startTime);
+
+    gainNode.gain.setValueAtTime(seq.gain, startTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + noteDuration);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(startTime);
+    osc.stop(startTime + noteDuration);
+  });
+}
+
+export function playThemeTickSound() {
+  const activeTheme = useThemeStore.getState().getActiveTheme();
+  if (activeTheme && activeTheme.sounds.tick) {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      ctx.resume();
+    }
+
+    const config = activeTheme.sounds.tick;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    osc.type = config.type;
+    osc.frequency.setValueAtTime(config.frequency, now);
+    if (config.endFrequency !== undefined) {
+      osc.frequency.exponentialRampToValueAtTime(config.endFrequency, now + config.duration);
+    }
+
+    gainNode.gain.setValueAtTime(config.gain, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, now + config.duration);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + config.duration);
+  } else {
+    playTickSound();
+  }
+}
+
+export function playThemeWarningSound() {
+  const activeTheme = useThemeStore.getState().getActiveTheme();
+  if (activeTheme && activeTheme.sounds.warning) {
+    playSequence(activeTheme.sounds.warning);
+  } else {
+    playTransitionWarningSound();
+  }
+}
+
+export function playThemePanicExpiredAlarm() {
+  const activeTheme = useThemeStore.getState().getActiveTheme();
+  if (activeTheme && activeTheme.sounds.alarm) {
+    playSequence(activeTheme.sounds.alarm);
+  } else {
+    playPanicExpiredAlarm();
+  }
+}
+
+export function playWarningForTheme(theme: ThemeConfig) {
+  if (theme && theme.sounds.warning) {
+    playSequence(theme.sounds.warning);
+  } else {
+    playTransitionWarningSound();
+  }
+}
+
 

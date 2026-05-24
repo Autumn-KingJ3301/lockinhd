@@ -4,6 +4,9 @@ import { SuggestionsOverlay } from "./SuggestionsOverlay";
 import { formatPanicTime, formatTimestamp } from "../utils/timeFormatters";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
 import { getParsedCommand } from "../utils/commandParser";
+import { useThemeStore } from "../store/useThemeStore";
+import { themeToCssVars } from "../themes/themeUtils";
+import { ThemeEffectsOverlay } from "./ThemeEffectsOverlay";
 
 type PanicModalProps = {
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -20,6 +23,10 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
   const dismissedSuggestions = useLockinStore((state) => state.dismissedSuggestions);
   const selectedSuggestionIndex = useLockinStore((state) => state.selectedSuggestionIndex);
   const showPanicModal = useLockinStore((state) => state.showPanicModal);
+
+  // Listen to activeThemeId changes to trigger re-renders
+  useThemeStore((state) => state.activeThemeId);
+  const activeTheme = useThemeStore.getState().getActiveTheme();
 
   // Actions
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
@@ -77,9 +84,20 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
   const placeholderText = "drop a note, add step /t, complete /d, or extend /panic +5m...";
   const hintText = "type note + ↵ to log  ·  /panic [time] to extend  ·  /min to close overlay";
 
+  const themeStyles = activeTheme ? themeToCssVars(activeTheme) : {};
+  const overlayType = activeTheme?.styles.effects.overlayType || "none";
+
   return (
-    <div className={`panic-modal-overlay ${isCritical ? "critical" : ""} ${isOvertime ? "overtime" : ""} ${isWarning ? "warning" : ""}`}>
-      <div className="panic-modal-container">
+    <div 
+      className={`panic-modal-overlay ${isCritical ? "critical" : ""} ${isOvertime ? "overtime" : ""} ${isWarning ? "warning" : ""} ${activeTheme ? "themed" : ""}`}
+      style={themeStyles}
+    >
+      <ThemeEffectsOverlay
+        type={overlayType}
+        isCritical={isCritical}
+        isOvertime={isOvertime}
+      />
+      <div className={`panic-modal-container ${isCritical ? "critical" : ""} ${isOvertime ? "overtime" : ""} ${isWarning ? "warning" : ""} ${activeTheme ? "themed" : ""}`}>
         
         {/* Modal Header */}
         <div className="panic-modal-header">

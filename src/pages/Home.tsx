@@ -4,6 +4,7 @@ import { getParsedCommand, parseDuration, commandRegistry } from "../utils/comma
 import { generateMarkdownExport } from "../utils/markdownExporter";
 import { useLockinStore } from "../store/useLockinStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { useThemeStore } from "../store/useThemeStore";
 import { useCloudSync } from "../hooks/useCloudSync";
 import type { Theme } from "../types";
 import { Toolbar } from "../components/Toolbar";
@@ -19,7 +20,7 @@ import { PanicModal } from "../components/PanicModal";
 import { AuroraCanvas } from "../components/AuroraCanvas";
 import { ArchivePanel, ArchiveConfirmBar, StashNotifBar } from "../components/ArchivePanel";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
-import { playTickSound, playPanicExpiredAlarm, playTransitionWarningSound } from "../utils/audioSynth";
+import { playThemeTickSound, playThemePanicExpiredAlarm, playThemeWarningSound } from "../utils/audioSynth";
 import { formatSummaryDuration } from "../utils/timeFormatters";
 
 export const Home = () => {
@@ -238,27 +239,27 @@ export const Home = () => {
       const remaining = endElapsed - elapsed;
       if (remaining === 120) {
         if (soundEnabled) {
-          try { playTransitionWarningSound(); } catch (e) { }
+          try { playThemeWarningSound(); } catch (e) { }
         }
       }
       if (remaining === 0) {
         if (soundEnabled) {
-          try { playPanicExpiredAlarm(); } catch (e) { }
+          try { playThemePanicExpiredAlarm(); } catch (e) { }
         }
       } else if (remaining < 0) {
         // Overtime beep alarm every 10 seconds
         if (remaining % 10 === 0 && soundEnabled) {
-          try { playPanicExpiredAlarm(); } catch (e) { }
+          try { playThemePanicExpiredAlarm(); } catch (e) { }
         }
       } else if (remaining <= 15) {
         // Play click tick every second for critical urgency
         if (soundEnabled) {
-          try { playTickSound(); } catch (e) { }
+          try { playThemeTickSound(); } catch (e) { }
         }
       } else if (remaining <= 30) {
         // Play click tick every 3 seconds for mild warning
         if (remaining % 3 === 0 && soundEnabled) {
-          try { playTickSound(); } catch (e) { }
+          try { playThemeTickSound(); } catch (e) { }
         }
       }
     }
@@ -784,15 +785,71 @@ export const Home = () => {
     }
 
     if (cmdName === "theme") {
-      const lowerArg = args.toLowerCase();
+      const lowerArg = args.trim().toLowerCase();
       if (lowerArg === "light" || lowerArg === "dark" || lowerArg === "system") {
-        setTheme(lowerArg);
-      } else if (!lowerArg) {
+        setTheme(lowerArg as Theme);
+        setToastMsg(`Interface theme set to ${lowerArg}`);
+      } else if (lowerArg === "default") {
+        try {
+          useThemeStore.getState().applyTheme("default");
+          setToastMsg("Panic skin reset to default");
+        } catch (e: any) {
+          setToastMsg(e.message);
+        }
+      } else if (lowerArg) {
+        try {
+          useThemeStore.getState().applyTheme(lowerArg);
+          const active = useThemeStore.getState().getActiveTheme();
+          setToastMsg(`Panic skin set to ${active?.name || lowerArg}`);
+        } catch (e: any) {
+          setToastMsg(e.message || `Theme '${args}' not found.`);
+        }
+      } else {
         const modes: Theme[] = ["system", "light", "dark"];
         const nextIdx = (modes.indexOf(theme) + 1) % modes.length;
         setTheme(modes[nextIdx]);
-      } else {
-        setToastMsg("Invalid theme. Use light, dark, or system.");
+        setToastMsg(`Interface theme toggled to ${modes[nextIdx]}`);
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "themes") {
+      setToastMsg("Opening Theme Store...");
+      setInput("");
+      setTimeout(() => {
+        navigate("/themes");
+      }, 300);
+      return;
+    }
+
+    if (cmdName === "theme-install") {
+      if (!args.trim()) {
+        setToastMsg("Usage: /theme-install [JSON theme]");
+        setInput("");
+        return;
+      }
+      try {
+        const theme = useThemeStore.getState().installTheme(args);
+        setToastMsg(`Successfully installed skin: ${theme.name}! Type '/theme ${theme.id}' to apply.`);
+      } catch (e: any) {
+        setToastMsg(`Installation failed: ${e.message}`);
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "theme-uninstall") {
+      if (!args.trim()) {
+        setToastMsg("Usage: /theme-uninstall [themeId]");
+        setInput("");
+        return;
+      }
+      try {
+        useThemeStore.getState().uninstallTheme(args.trim());
+        setToastMsg(`Successfully uninstalled skin: ${args.trim()}`);
+      } catch (e: any) {
+        setToastMsg(`Uninstall failed: ${e.message}`);
       }
       setInput("");
       return;

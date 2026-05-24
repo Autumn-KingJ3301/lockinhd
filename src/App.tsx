@@ -3,6 +3,7 @@ import { Home } from "./pages/Home";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Profile } from "./pages/Profile";
+import { ThemeStore } from "./pages/ThemeStore";
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/profile" element={<Profile />} />
+      <Route path="/themes" element={<ThemeStore />} />
     </Routes>
   );
 }

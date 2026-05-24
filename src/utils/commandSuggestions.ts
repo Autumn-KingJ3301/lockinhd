@@ -1,5 +1,6 @@
 import type { AppMode, Session, QueueItem } from "../types";
 import { commandRegistry, getParsedCommand } from "./commandParser";
+import { useThemeStore } from "../store/useThemeStore";
 
 export type CommandSuggestion = {
   command: string;
@@ -127,7 +128,32 @@ export function getCommandSuggestions(
       break;
       
     case "string":
-      // Maybe some templates or just let them type
+      if (schema.name === "theme") {
+        const themeOptions = ["light", "dark", "system", "default", ...useThemeStore.getState().getAllThemes().map((t) => t.id)];
+        // Filter unique options
+        const uniqueOptions = Array.from(new Set(themeOptions));
+        uniqueOptions.forEach((opt) => {
+          if (opt.toLowerCase().startsWith(typedArgPart)) {
+            suggestions.push({
+              command: `${baseInput}${opt}`,
+              description: ["light", "dark", "system"].includes(opt)
+                ? `Set interface style to ${opt}`
+                : opt === "default"
+                ? "Reset to standard skin"
+                : `Apply skin: ${opt}`
+            });
+          }
+        });
+      } else if (schema.name === "theme-uninstall") {
+        useThemeStore.getState().customThemes.forEach((t) => {
+          if (t.id.toLowerCase().startsWith(typedArgPart)) {
+            suggestions.push({
+              command: `${baseInput}${t.id}`,
+              description: `Uninstall theme: ${t.name} v${t.version || "1.0.0"}`
+            });
+          }
+        });
+      }
       break;
   }
 

@@ -227,9 +227,35 @@ export const commandRegistry: CommandSchema[] = [
   {
     name: "theme",
     category: "settings",
-    description: "Set theme",
+    description: "Set theme mode (light/dark/system) or active theme ID",
+    shortcuts: ["th"],
     args: [
-      { name: "mode", type: "option", options: ["light", "dark", "system"], optional: true }
+      { name: "name", type: "string", optional: true }
+    ]
+  },
+  {
+    name: "themes",
+    category: "nav",
+    description: "Open the Theme Store",
+    shortcuts: ["store", "ths"],
+    args: []
+  },
+  {
+    name: "theme-install",
+    category: "settings",
+    description: "Install a custom theme from JSON",
+    shortcuts: ["thi"],
+    args: [
+      { name: "json", type: "string", allowSpaces: true }
+    ]
+  },
+  {
+    name: "theme-uninstall",
+    category: "settings",
+    description: "Uninstall a custom theme by ID",
+    shortcuts: ["thu"],
+    args: [
+      { name: "id", type: "string" }
     ]
   },
   {
