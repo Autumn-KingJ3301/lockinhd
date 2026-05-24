@@ -92,6 +92,7 @@ export interface LockinStoreActions {
   setShowHistoryPanel: (val: boolean) => void;
   setShowInboxPanel: (val: boolean) => void;
   setSelectedHistorySession: (session: Session | null) => void;
+  _checkDailyLimitReached: () => boolean;
 
   // Queued Tasks
   addToQueue: (taskText: string) => void;
@@ -102,7 +103,7 @@ export interface LockinStoreActions {
   exitWrapMode: () => void;
 
   // Session Management
-  completeSession: () => void;
+  completeSession: (forcedEndTime?: number) => void;
   addNote: (text: string) => void;
   addTodo: (text: string) => void;
   toggleTodo: (index: number) => void;
@@ -230,13 +231,76 @@ export const useLockinStore = create<LockinStore>()(
       // Actions
       setMode: (mode) => set({ mode }),
       setInput: (input) => set({ input }),
-      tickElapsed: () => set((state) => ({ elapsed: state.elapsed + 1 })),
+      tickElapsed: () => {
+        const { elapsed, completeSession, session, sessions } = get();
+        const nextElapsed = elapsed + 1;
+
+        // Guardrail: 15 hours daily limit
+        const MAX_DAILY_SECONDS = 15 * 3600;
+        
+        // Quick check for current session duration
+        if (nextElapsed > MAX_DAILY_SECONDS) {
+          completeSession();
+          return;
+        }
+
+        // Periodic check for daily total (every 30 seconds to be safe on performance)
+        if (nextElapsed % 30 === 0 && session) {
+          const now = Date.now();
+          const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+          const completedToday = sessions
+            .filter(s => s.endTime && s.endTime >= startOfToday)
+            .reduce((acc, s) => {
+              const effectiveStart = Math.max(s.startTime, startOfToday);
+              return acc + Math.max(0, Math.round((s.endTime! - effectiveStart) / 1000));
+            }, 0);
+
+          const sessionStartToday = Math.max(session.startTime, startOfToday);
+          const currentElapsedToday = Math.max(0, Math.round((now - sessionStartToday) / 1000));
+
+          if (completedToday + currentElapsedToday >= MAX_DAILY_SECONDS) {
+            completeSession();
+            return;
+          }
+        }
+
+        set({ elapsed: nextElapsed });
+      },
       setElapsed: (elapsed) => set({ elapsed }),
       rehydrateTimer: () => {
-        const { session } = get();
+        const { session, sessions, completeSession } = get();
         if (session) {
-          const diff = Math.max(0, Math.round((Date.now() - session.startTime) / 1000)) + (session.accumulatedDuration || 0);
-          set({ elapsed: diff });
+          const now = Date.now();
+          const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+          const MAX_DAILY_SECONDS = 15 * 3600;
+
+          // Calculate time spent in completed sessions today
+          const completedToday = sessions
+            .filter(s => s.endTime && s.endTime >= startOfToday)
+            .reduce((acc, s) => {
+              const effectiveStart = Math.max(s.startTime, startOfToday);
+              return acc + Math.max(0, Math.round((s.endTime! - effectiveStart) / 1000));
+            }, 0);
+
+          const diff = Math.max(0, Math.round((now - session.startTime) / 1000));
+          const totalElapsed = diff + (session.accumulatedDuration || 0);
+
+          // Current session contribution to today
+          const sessionStartToday = Math.max(session.startTime, startOfToday);
+          const currentElapsedToday = Math.max(0, Math.round((now - sessionStartToday) / 1000));
+
+          if (completedToday + currentElapsedToday >= MAX_DAILY_SECONDS) {
+            // Over the 15h daily limit
+            const allowanceToday = MAX_DAILY_SECONDS - completedToday;
+            const forcedEndTime = sessionStartToday + Math.max(0, allowanceToday) * 1000;
+            
+            // Adjust elapsed to what it should be at forcedEndTime
+            const finalElapsed = Math.round((forcedEndTime - session.startTime) / 1000) + (session.accumulatedDuration || 0);
+            set({ elapsed: finalElapsed });
+            completeSession(forcedEndTime);
+          } else {
+            set({ elapsed: totalElapsed });
+          }
         }
       },
 
@@ -256,6 +320,22 @@ export const useLockinStore = create<LockinStore>()(
       setShowInboxPanel: (showInboxPanel) => set({ showInboxPanel }),
       setSelectedHistorySession: (selectedHistorySession) => set({ selectedHistorySession }),
 
+      _checkDailyLimitReached: () => {
+        const { sessions } = get();
+        const now = Date.now();
+        const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+        const MAX_DAILY_SECONDS = 15 * 3600;
+
+        const completedToday = sessions
+          .filter(s => s.endTime && s.endTime >= startOfToday)
+          .reduce((acc, s) => {
+            const effectiveStart = Math.max(s.startTime, startOfToday);
+            return acc + Math.max(0, Math.round((s.endTime! - effectiveStart) / 1000));
+          }, 0);
+
+        return completedToday >= MAX_DAILY_SECONDS;
+      },
+
       addToQueue: (taskText) =>
         set((state) => ({
           queue: [...state.queue, { id: Date.now(), text: taskText }],
@@ -265,6 +345,10 @@ export const useLockinStore = create<LockinStore>()(
           queue: state.queue.filter((q) => q.id !== id),
         })),
       startSession: (taskName, estimatedDuration, energyRating) => {
+        if (get()._checkDailyLimitReached()) {
+          set({ toastMsg: "Daily focus limit (15h) reached. Rest up!" });
+          return;
+        }
         const time = Date.now();
         set({
           session: {
@@ -293,6 +377,10 @@ export const useLockinStore = create<LockinStore>()(
         });
       },
       startPanicSession: (taskName, duration, estimatedDuration, energyRating) => {
+        if (get()._checkDailyLimitReached()) {
+          set({ toastMsg: "Daily focus limit (15h) reached. Rest up!" });
+          return;
+        }
         const time = Date.now();
         set({
           session: {
@@ -324,6 +412,10 @@ export const useLockinStore = create<LockinStore>()(
       },      startNextQueuedTask: () => {
         const { queue } = get();
         if (queue.length > 0) {
+          if (get()._checkDailyLimitReached()) {
+            set({ toastMsg: "Daily focus limit (15h) reached. Rest up!" });
+            return;
+          }
           const nextTask = queue[0];
           const time = Date.now();
           set({
@@ -351,10 +443,10 @@ export const useLockinStore = create<LockinStore>()(
         get().checkCallbacks();
       },
 
-      completeSession: () => {
+      completeSession: (forcedEndTime) => {
         const { session, soundEnabled } = get();
         if (session) {
-          const endTime = Date.now();
+          const endTime = forcedEndTime || Date.now();
           const runDuration = Math.round((endTime - session.startTime) / 1000);
           const totalDuration = runDuration + (session.accumulatedDuration || 0);
 
@@ -574,6 +666,10 @@ export const useLockinStore = create<LockinStore>()(
         }
       },
       continueSession: (pastSession, estimatedDuration, energyRating) => {
+        if (get()._checkDailyLimitReached()) {
+          set({ toastMsg: "Daily focus limit (15h) reached. Rest up!" });
+          return;
+        }
         const sessionId = pastSession.id || pastSession.startTime;
         const revision = (pastSession.revision || 1) + 1;
         const accumulatedDuration = pastSession.duration || 0;

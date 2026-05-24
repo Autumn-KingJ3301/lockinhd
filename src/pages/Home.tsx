@@ -58,7 +58,6 @@ export const Home = () => {
 
   // Select store actions
   const tickElapsed = useLockinStore((state) => state.tickElapsed);
-  const rehydrateTimer = useLockinStore((state) => state.rehydrateTimer);
   const setIsSystemDark = useLockinStore((state) => state.setIsSystemDark);
   const setToastMsg = useLockinStore((state) => state.setToastMsg);
   const addToQueue = useLockinStore((state) => state.addToQueue);
@@ -140,11 +139,6 @@ export const Home = () => {
       navigate("/login");
     }
   }, [user, loading, navigate]);
-
-  // Rehydrate timer offset from session start timestamp on mount
-  useEffect(() => {
-    rehydrateTimer();
-  }, [rehydrateTimer]);
 
   // Synchronize theme configuration on mount/change
   useEffect(() => {
