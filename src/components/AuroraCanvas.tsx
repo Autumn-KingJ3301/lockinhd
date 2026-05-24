@@ -192,6 +192,21 @@ export const AuroraCanvas: React.FC<AuroraCanvasProps> = ({
                 curt1: [{ r: 255, g: 51, b: 0 }, { r: 200, g: 20, b: 0 }, { r: 255, g: 80, b: 10 }, { r: 180, g: 10, b: 0 }, { r: 220, g: 40, b: 0 }],
                 curt2: [{ r: 220, g: 30, b: 0 }, { r: 255, g: 60, b: 10 }, { r: 190, g: 15, b: 0 }, { r: 240, g: 45, b: 0 }, { r: 200, g: 25, b: 0 }],
                 curt3: [{ r: 240, g: 50, b: 5 }, { r: 200, g: 20, b: 0 }, { r: 255, g: 70, b: 15 }, { r: 160, g: 10, b: 0 }, { r: 230, g: 35, b: 0 }]
+            },
+            vaporwave: {
+                curt1: [{ r: 255, g: 110, b: 199 }, { r: 0, g: 229, b: 255 }, { r: 199, g: 116, b: 232 }, { r: 255, g: 80, b: 180 }, { r: 80, g: 200, b: 255 }],
+                curt2: [{ r: 180, g: 60, b: 220 }, { r: 255, g: 140, b: 210 }, { r: 0, g: 210, b: 255 }, { r: 220, g: 80, b: 255 }, { r: 255, g: 100, b: 200 }],
+                curt3: [{ r: 255, g: 60, b: 160 }, { r: 140, g: 80, b: 255 }, { r: 255, g: 160, b: 220 }, { r: 0, g: 180, b: 240 }, { r: 200, g: 50, b: 240 }]
+            },
+            arctic: {
+                curt1: [{ r: 0, g: 229, b: 176 }, { r: 0, g: 200, b: 255 }, { r: 100, g: 255, b: 200 }, { r: 0, g: 180, b: 140 }, { r: 80, g: 240, b: 210 }],
+                curt2: [{ r: 124, g: 77, b: 255 }, { r: 0, g: 188, b: 212 }, { r: 150, g: 100, b: 255 }, { r: 0, g: 229, b: 176 }, { r: 100, g: 120, b: 255 }],
+                curt3: [{ r: 0, g: 210, b: 160 }, { r: 180, g: 130, b: 255 }, { r: 0, g: 255, b: 200 }, { r: 120, g: 80, b: 240 }, { r: 50, g: 220, b: 180 }]
+            },
+            deepspace: {
+                curt1: [{ r: 199, g: 146, b: 234 }, { r: 130, g: 170, b: 255 }, { r: 255, g: 203, b: 107 }, { r: 160, g: 110, b: 240 }, { r: 100, g: 140, b: 255 }],
+                curt2: [{ r: 140, g: 100, b: 220 }, { r: 80, g: 130, b: 255 }, { r: 220, g: 170, b: 255 }, { r: 255, g: 180, b: 80 }, { r: 160, g: 120, b: 255 }],
+                curt3: [{ r: 180, g: 130, b: 250 }, { r: 100, g: 160, b: 255 }, { r: 255, g: 220, b: 130 }, { r: 200, g: 150, b: 255 }, { r: 120, g: 180, b: 255 }]
             }
         };
 
@@ -358,6 +373,13 @@ export const AuroraCanvas: React.FC<AuroraCanvasProps> = ({
                 ctx.fillRect(0, 0, w, h);
             } else if (skyType === "starry") {
                 const colors = activeTheme?.styles.effects.skyColors || ["#000000", "#002200", "#000000"];
+                colors.forEach((col, idx) => {
+                    grad.addColorStop(idx / (colors.length - 1), col);
+                });
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+            } else if (skyType === "aurora") {
+                const colors = activeTheme?.styles.effects.skyColors || ["#020c1b", "#041828", "#062338"];
                 colors.forEach((col, idx) => {
                     grad.addColorStop(idx / (colors.length - 1), col);
                 });
