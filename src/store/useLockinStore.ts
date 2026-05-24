@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask, RecurrenceData } from "../types";
+import type { Note, TodoItem, Session, SessionRevision, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask, RecurrenceData, JournalEntry } from "../types";
+import { apiService } from "../services/apiService";
+import { useAuthStore } from "./useAuthStore";
 import { playPopSound, playChimeSound, playMegaChimeSound } from "../utils/audioSynth";
 import { triggerConfetti } from "../utils/confetti";
 import { parseDuration } from "../utils/commandParser";
@@ -77,6 +79,8 @@ export interface LockinStoreState {
   showRecurrenceModal: boolean;
   recurrenceModalTaskId: number | null;
   showTraceInline: boolean;
+  journals: JournalEntry[];
+  journalsLoading: boolean;
 }
 
 export interface LockinStoreActions {
@@ -162,6 +166,10 @@ export interface LockinStoreActions {
   setShowRecurrenceModal: (val: boolean) => void;
   setRecurrence: (taskId: number, recurrence: RecurrenceData | undefined) => void;
   toggleTrace: (val?: boolean) => void;
+  saveJournalEntry: (entry: JournalEntry) => Promise<void>;
+  deleteJournalEntry: (id: string) => Promise<void>;
+  setJournals: (journals: JournalEntry[]) => void;
+  setJournalsLoading: (loading: boolean) => void;
   // Archive & stash actions
   createArchive: (label?: string) => Archive;
   setArchives: (archives: Archive[]) => void;
@@ -231,6 +239,8 @@ export const useLockinStore = create<LockinStore>()(
       showRecurrenceModal: false,
       recurrenceModalTaskId: null,
       showTraceInline: false,
+      journals: [],
+      journalsLoading: false,
       // Actions
       setMode: (mode) => set({ mode }),
       setInput: (input) => set({ input }),
@@ -1142,6 +1152,44 @@ export const useLockinStore = create<LockinStore>()(
       toggleTrace: (val) => set((state) => ({ 
         showTraceInline: val !== undefined ? val : !state.showTraceInline 
       })),
+      saveJournalEntry: async (entry) => {
+        const { journals } = get();
+        const exists = journals.some(j => j.id === entry.id);
+        const updated = exists
+          ? journals.map(j => j.id === entry.id ? entry : j)
+          : [entry, ...journals];
+        
+        set({ journals: updated });
+
+        const user = useAuthStore.getState().user;
+        if (user) {
+          try {
+            await apiService.saveJournalEntry(user.uid, entry);
+            set({ toastMsg: "Reflection saved to cloud ✓" });
+          } catch (e) {
+            console.error("Cloud save failed:", e);
+            set({ toastMsg: "Saved locally. Cloud sync failed." });
+          }
+        } else {
+          set({ toastMsg: "Saved locally (not logged in)." });
+        }
+      },
+      deleteJournalEntry: async (id) => {
+        const { journals } = get();
+        set({ journals: journals.filter(j => j.id !== id) });
+
+        const user = useAuthStore.getState().user;
+        if (user) {
+          try {
+            await apiService.deleteJournalEntry(user.uid, id);
+            set({ toastMsg: "Reflection deleted from cloud." });
+          } catch (e) {
+            console.error("Cloud delete failed:", e);
+          }
+        }
+      },
+      setJournals: (journals) => set({ journals }),
+      setJournalsLoading: (journalsLoading) => set({ journalsLoading }),
     }),
     {
       name: "lockin-store-state",
@@ -1168,6 +1216,7 @@ export const useLockinStore = create<LockinStore>()(
         schedules: state.schedules,
         showCallbacksPanel: state.showCallbacksPanel,
         showSchedulesPanel: state.showSchedulesPanel,
+        journals: state.journals,
       }),
     }
   )

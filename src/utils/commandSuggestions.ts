@@ -86,41 +86,90 @@ export function getCommandSuggestions(
     case "index":
       // Context-aware index suggestions
       if (schema.name === "continue") {
-        sessions.slice(-5).reverse().forEach((s, idx) => {
+        const candidates = sessions.map((s, idx) => ({
+          session: s,
+          indexFromEnd: sessions.length - idx
+        })).reverse();
+
+        const filtered = typedArgPart
+          ? candidates.filter(c => c.session.task.toLowerCase().includes(typedArgPart))
+          : candidates;
+
+        filtered.slice(0, 5).forEach((c) => {
           suggestions.push({
-            command: `${baseInput}${idx + 1}`,
-            description: `Resume: ${s.task}`
+            command: `${baseInput}${c.indexFromEnd}`,
+            description: `Resume: ${c.session.task}`
           });
         });
       } else if (schema.name === "remove-queue") {
-        queue.slice(0, 5).forEach((q, idx) => {
+        const candidates = queue.map((q, idx) => ({
+          q,
+          oneBasedIndex: idx + 1
+        }));
+
+        const filtered = typedArgPart
+          ? candidates.filter(c => c.q.text.toLowerCase().includes(typedArgPart))
+          : candidates;
+
+        filtered.slice(0, 5).forEach((c) => {
           suggestions.push({
-            command: `${baseInput}${idx + 1}`,
-            description: `Remove: ${q.text}`
+            command: `${baseInput}${c.oneBasedIndex}`,
+            description: `Remove: ${c.q.text}`
           });
         });
       } else if (schema.name === "delete-idea") {
-        idleSidetracks.slice(-5).reverse().forEach((idea, idx) => {
+        const candidates = idleSidetracks.map((idea, idx) => ({
+          idea,
+          oneBasedIndex: idx + 1
+        })).reverse();
+
+        const filtered = typedArgPart
+          ? candidates.filter(c => c.idea.toLowerCase().includes(typedArgPart))
+          : candidates;
+
+        filtered.slice(0, 5).forEach((c) => {
           suggestions.push({
-            command: `${baseInput}${idx + 1}`,
-            description: `Delete: ${idea}`
+            command: `${baseInput}${c.oneBasedIndex}`,
+            description: `Delete: ${c.idea}`
           });
         });
       } else if (schema.name === "check" || schema.name === "remove") {
         if (currentSession?.todos) {
-          currentSession.todos.slice(0, 5).forEach((todo, idx) => {
+          const candidates = currentSession.todos.map((todo, idx) => ({
+            todo,
+            oneBasedIndex: idx + 1
+          }));
+
+          const filtered = typedArgPart
+            ? candidates.filter(c => c.todo.text.toLowerCase().includes(typedArgPart))
+            : candidates;
+
+          filtered.slice(0, 5).forEach((c) => {
             suggestions.push({
-              command: `${baseInput}${idx + 1}`,
-              description: `${schema.name === "check" ? (todo.completed ? "Uncheck" : "Check") : "Remove"}: ${todo.text}`
+              command: `${baseInput}${c.oneBasedIndex}`,
+              description: `${schema.name === "check" ? (c.todo.completed ? "Uncheck" : "Check") : "Remove"}: ${c.todo.text}`
             });
           });
         }
       } else if (schema.name === "revision") {
         if (selectedHistorySession?.revisionHistory) {
-          selectedHistorySession.revisionHistory.forEach(rev => {
+          const candidates = selectedHistorySession.revisionHistory.map((rev) => ({
+            rev,
+            oneBasedIndex: rev.revisionNumber
+          }));
+
+          const filtered = typedArgPart
+            ? candidates.filter(c => 
+                c.rev.notes.some(n => n.text.toLowerCase().includes(typedArgPart)) ||
+                c.rev.todos.some(t => t.text.toLowerCase().includes(typedArgPart)) ||
+                c.rev.sidetracks.some(s => s.toLowerCase().includes(typedArgPart))
+              )
+            : candidates;
+
+          filtered.slice(0, 5).forEach(c => {
             suggestions.push({
-              command: `${baseInput}${rev.revisionNumber}`,
-              description: `View Revision ${rev.revisionNumber}`
+              command: `${baseInput}${c.oneBasedIndex}`,
+              description: `View Revision ${c.oneBasedIndex}`
             });
           });
         }

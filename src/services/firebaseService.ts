@@ -10,7 +10,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../utils/firebase";
 import type { IApiService, LockinData } from "./apiService";
-import type { Archive, StashData, SessionTrend } from "../types";
+import type { Archive, StashData, SessionTrend, JournalEntry } from "../types";
 
 class FirebaseApiService implements IApiService {
   private sanitizeData(data: unknown): unknown {
@@ -99,6 +99,42 @@ class FirebaseApiService implements IApiService {
     const q = query(col, orderBy("startTime", "desc"));
     const snap = await getDocs(q);
     return snap.docs.map((d) => d.data() as SessionTrend);
+  }
+
+  // ─── Journals ─────────────────────────────────────────────────────────────
+
+  async saveJournalEntry(userId: string, journal: JournalEntry): Promise<void> {
+    const docRef = doc(db, "users", userId, "journals", journal.id);
+    
+    // Strip large base64 data url from photos and voiceMemos for cloud saving
+    const cleanedJournal = {
+      ...journal,
+      photos: journal.photos?.map(({ id, name }) => ({
+        id,
+        name,
+        hasLocalData: true
+      })) || [],
+      voiceMemos: journal.voiceMemos?.map(({ id, label, duration }) => ({
+        id,
+        label,
+        duration,
+        hasLocalData: true
+      })) || []
+    };
+
+    const sanitized = this.sanitizeData(cleanedJournal) as Record<string, unknown>;
+    await setDoc(docRef, sanitized);
+  }
+
+  async loadJournalEntries(userId: string): Promise<JournalEntry[]> {
+    const col = collection(db, "users", userId, "journals");
+    const q = query(col, orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => d.data() as JournalEntry);
+  }
+
+  async deleteJournalEntry(userId: string, journalId: string): Promise<void> {
+    await deleteDoc(doc(db, "users", userId, "journals", journalId));
   }
 }
 

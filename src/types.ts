@@ -100,3 +100,31 @@ export type SessionTrend = {
   endTime: number;
   revisionCount: number;
 };
+
+export type JournalPhoto = {
+  id: string;
+  name?: string;
+  url?: string; // base64, only populated locally!
+  hasLocalData?: boolean;
+};
+
+export type JournalVoiceMemo = {
+  id: string;
+  label?: string;
+  url?: string; // base64, only populated locally!
+  duration?: number;
+  hasLocalData?: boolean;
+};
+
+export type JournalEntry = {
+  id: string;
+  createdAt: number;
+  date: string; // YYYY-MM-DD
+  title: string;
+  content: string;
+  sessionsSnapshot?: Session[];
+  idleSidetracksSnapshot?: string[];
+  photos?: JournalPhoto[];
+  voiceMemos?: JournalVoiceMemo[];
+};
+

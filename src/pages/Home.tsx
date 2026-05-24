@@ -866,6 +866,15 @@ export const Home = () => {
       return;
     }
 
+    if (cmdName === "journal") {
+      setToastMsg("Opening Journal...");
+      setInput("");
+      setTimeout(() => {
+        navigate("/journal");
+      }, 300);
+      return;
+    }
+
     if (cmdName === "theme-install") {
       if (!args.trim()) {
         setToastMsg("Usage: /theme-install [JSON theme]");

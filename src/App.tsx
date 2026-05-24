@@ -5,6 +5,7 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Profile } from "./pages/Profile";
 import { ThemeStore } from "./pages/ThemeStore";
+import { Journal } from "./pages/Journal";
 import { useGlobalTheme } from "./hooks/useGlobalTheme";
 import { useLockinStore } from "./store/useLockinStore";
 
@@ -25,6 +26,7 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/themes" element={<ThemeStore />} />
+      <Route path="/journal" element={<Journal />} />
     </Routes>
   );
 }

@@ -226,6 +226,13 @@ export const commandRegistry: CommandSchema[] = [
     args: []
   },
   {
+    name: "journal",
+    category: "nav",
+    description: "Open the Journal Screen",
+    shortcuts: ["j", "jr"],
+    args: []
+  },
+  {
     name: "theme",
     category: "settings",
     description: "Set theme mode (light/dark/system) or active theme ID",

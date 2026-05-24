@@ -1,4 +1,4 @@
-import type { Session, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask } from "../types";
+import type { Session, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask, JournalEntry } from "../types";
 import { firebaseApiService } from "./firebaseService";
 
 export interface LockinData {
@@ -41,6 +41,12 @@ export interface IApiService {
   // Session trends (analytics)
   saveSessionTrend(userId: string, trend: SessionTrend): Promise<void>;
   loadSessionTrends(userId: string): Promise<SessionTrend[]>;
+
+  // Journals
+  saveJournalEntry(userId: string, journal: JournalEntry): Promise<void>;
+  loadJournalEntries(userId: string): Promise<JournalEntry[]>;
+  deleteJournalEntry(userId: string, journalId: string): Promise<void>;
 }
 
 export const apiService: IApiService = firebaseApiService;
+

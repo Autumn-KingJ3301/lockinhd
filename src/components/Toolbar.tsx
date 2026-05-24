@@ -74,6 +74,18 @@ export const Toolbar: React.FC = () => {
       >
         {showArchivesPanel ? "Hide Archives" : "Archives"} ({archives.length}){stash ? " ⟆" : ""}
       </button>
+      <button
+        id="toolbar-journal-btn"
+        className="theme-toggle-btn"
+        onClick={() => navigate("/journal")}
+        style={{
+          marginRight: "6px",
+          borderColor: "var(--color-success)",
+          color: "var(--color-success)",
+        }}
+      >
+        Journal
+      </button>
       {user && (
         <button
           className="theme-toggle-btn"

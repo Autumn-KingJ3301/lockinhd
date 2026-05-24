@@ -90,16 +90,19 @@ export const useCloudSync = () => {
   const setArchivesLoading = useLockinStore((state) => state.setArchivesLoading);
   const setStash = useLockinStore((state) => state.setStash);
   const clearPendingTrend = useLockinStore((state) => state.clearPendingTrend);
+  const setJournals = useLockinStore((state) => state.setJournals);
+  const setJournalsLoading = useLockinStore((state) => state.setJournalsLoading);
 
   // Use a ref to prevent saving data that was just loaded
   const isInitialLoad = useRef(true);
 
-  // Load user data on login (workspace + archives + stash)
+  // Load user data on login (workspace + archives + stash + journals)
   useEffect(() => {
     if (initialized && user) {
       const loadData = async () => {
         try {
           setArchivesLoading(true);
+          setJournalsLoading(true);
 
           // Load main workspace
           const data = await apiService.loadUserData(user.uid);
@@ -116,10 +119,15 @@ export const useCloudSync = () => {
           if (stash) {
             setStash(stash);
           }
+
+          // Load journals
+          const journals = await apiService.loadJournalEntries(user.uid);
+          setJournals(journals);
         } catch (error) {
           console.error("Failed to load user data from cloud:", error);
         } finally {
           setArchivesLoading(false);
+          setJournalsLoading(false);
           // Add a short delay to ensure Zustand state propagates
           setTimeout(() => {
             isInitialLoad.current = false;
@@ -130,7 +138,7 @@ export const useCloudSync = () => {
     } else if (initialized && !user) {
       isInitialLoad.current = true;
     }
-  }, [user, initialized, setCloudData, setArchives, setArchivesLoading, setStash]);
+  }, [user, initialized, setCloudData, setArchives, setArchivesLoading, setStash, setJournals, setJournalsLoading]);
 
   // Watch for pendingTrend and write to Firestore immediately
   useEffect(() => {
