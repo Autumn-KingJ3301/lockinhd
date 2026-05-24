@@ -144,6 +144,17 @@ export function getCommandSuggestions(
             });
           }
         });
+      } else if (schema.name === "timer") {
+        if (currentSession?.todos) {
+          currentSession.todos.forEach((todo) => {
+            if (todo.text.toLowerCase().includes(typedArgPart)) {
+              suggestions.push({
+                command: `${baseInput}${todo.text}`,
+                description: `Start timer for subtask: ${todo.text}`
+              });
+            }
+          });
+        }
       } else if (schema.name === "theme-uninstall") {
         useThemeStore.getState().customThemes.forEach((t) => {
           if (t.id.toLowerCase().startsWith(typedArgPart)) {

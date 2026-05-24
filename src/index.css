@@ -715,6 +715,23 @@ h1, h2, h3, h4, h5, h6, strong, b, .app-title, .section-label, .command-chip {
   background-color: var(--color-surface);
 }
 
+.todo-item.timer-running {
+  background-color: var(--color-accent-bg);
+  box-shadow: 0 0 8px var(--color-accent-border);
+  border: 0.5px solid var(--color-accent-border);
+  animation: todo-glow 2s infinite ease-in-out;
+}
+
+.todo-item.subtimer-expired {
+  border: 0.5px solid var(--color-panic);
+  background-color: var(--color-panic-bg);
+}
+
+@keyframes todo-glow {
+  0%, 100% { box-shadow: 0 0 4px var(--color-accent-border); }
+  50% { box-shadow: 0 0 12px var(--color-accent); }
+}
+
 .todo-checkbox {
   font-family: var(--font-mono);
   font-weight: 700;

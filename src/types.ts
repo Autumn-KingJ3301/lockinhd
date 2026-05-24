@@ -7,6 +7,10 @@ export type TodoItem = {
   id: number;
   text: string;
   completed: boolean;
+  timerStartElapsed?: number; // When the standalone timer was started
+  timerTargetElapsed?: number; // The elapsed second value at which the sub-timer expires
+  timerDuration?: number;     // Accumulated duration in seconds
+  isTimerRunning?: boolean;
 };
 
 export type SessionRevision = {

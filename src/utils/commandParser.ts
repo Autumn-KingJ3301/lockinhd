@@ -94,9 +94,10 @@ export const commandRegistry: CommandSchema[] = [
   {
     name: "timer",
     category: "tasks",
-    description: "Set an inline countdown timer",
+    description: "Set inline countdown or start todo-specific timer",
     args: [
-      { name: "time", type: "duration" }
+      { name: "time", type: "duration" },
+      { name: "todo", type: "string", optional: true, allowSpaces: true }
     ]
   },
   {

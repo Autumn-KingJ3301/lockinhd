@@ -377,18 +377,46 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
               <div className="todos-section">
                 <div className="task-label">TODOS</div>
                 <div className="todo-list">
-                  {session.todos.map((todo, idx) => (
-                    <div
-                      key={todo.id}
-                      className="todo-item"
-                      onClick={() => toggleTodo(idx)}
-                    >
-                      <span className="todo-checkbox">{todo.completed ? "[x]" : "[ ]"}</span>
-                      <span className={`todo-text ${todo.completed ? "completed" : ""}`}>
-                        {idx + 1}. {todo.text}
-                      </span>
-                    </div>
-                  ))}
+                  {session.todos.map((todo, idx) => {
+                    let currentTodoElapsed = todo.isTimerRunning 
+                      ? (todo.timerDuration || 0) + (elapsed - (todo.timerStartElapsed || elapsed))
+                      : (todo.timerDuration || 0);
+
+                    const isCountdown = todo.timerTargetElapsed !== undefined;
+                    let displayTime = currentTodoElapsed;
+                    let isExpired = false;
+
+                    if (isCountdown) {
+                      const remaining = todo.timerTargetElapsed! - elapsed;
+                      displayTime = Math.max(0, remaining);
+                      isExpired = remaining <= 0;
+                    }
+
+                    return (
+                      <div
+                        key={todo.id}
+                        className={`todo-item ${todo.isTimerRunning ? "timer-running" : ""} ${isExpired ? "subtimer-expired" : ""}`}
+                        onClick={() => toggleTodo(idx)}
+                      >
+                        <span className="todo-checkbox">{todo.completed ? "[x]" : "[ ]"}</span>
+                        <span className={`todo-text ${todo.completed ? "completed" : ""}`} style={{ flexGrow: 1 }}>
+                          {idx + 1}. {todo.text}
+                        </span>
+                        
+                        {(currentTodoElapsed > 0 || todo.isTimerRunning || isCountdown) && (
+                          <span style={{ 
+                            fontSize: "10px", 
+                            color: todo.isTimerRunning ? "var(--color-accent)" : "var(--color-muted)", 
+                            marginRight: "4px", 
+                            fontFamily: "var(--font-mono)",
+                            fontWeight: isExpired ? "bold" : "normal"
+                          }}>
+                            {isCountdown ? (isExpired ? "00:00" : formatTime(displayTime)) : formatTime(displayTime)}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -423,10 +451,9 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
             <div className="wrap-header-row">
               <div className="wrap-success-indicator" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span className="check-icon">✓</span>
-                <span>Session Done</span>
+                <span>Focus Mode Lasted: {formatTime(wrapData.duration || 0)}</span>
                 <span className="badge badge-revision">rev {wrapData.revision || 1}</span>
               </div>
-              <div className="wrap-duration">{formatTime(wrapData.duration || 0)}</div>
             </div>
             <div className="wrap-task-name">{wrapData.task}</div>
 

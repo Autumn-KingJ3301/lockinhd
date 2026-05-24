@@ -106,6 +106,8 @@ export interface LockinStoreActions {
   addNote: (text: string) => void;
   addTodo: (text: string) => void;
   toggleTodo: (index: number) => void;
+  toggleTodoTimer: (index: number, duration?: number) => void;
+  toggleTodoTimerByText: (text: string, duration?: number) => void;
   removeTodo: (index: number) => void;
 
   // Sidetracks
@@ -265,11 +267,11 @@ export const useLockinStore = create<LockinStore>()(
       startSession: (taskName, estimatedDuration, energyRating) => {
         const time = Date.now();
         set({
-          session: { 
-            id: time, 
-            task: taskName, 
-            startTime: time, 
-            notes: [], 
+          session: {
+            id: time,
+            task: taskName,
+            startTime: time,
+            notes: [],
             revision: 1,
             estimatedDuration,
             energyRating
@@ -283,16 +285,21 @@ export const useLockinStore = create<LockinStore>()(
           showPanicModal: false,
           activeArchiveId: null,
           activeArchiveLabel: null,
+          setupStep: "idle",
+          setupTaskName: null,
+          setupPanicLimit: null,
+          setupEstimatedDuration: null,
+          setupContinueSessionData: null,
         });
       },
       startPanicSession: (taskName, duration, estimatedDuration, energyRating) => {
         const time = Date.now();
         set({
-          session: { 
-            id: time, 
-            task: taskName, 
-            startTime: time, 
-            notes: [], 
+          session: {
+            id: time,
+            task: taskName,
+            startTime: time,
+            notes: [],
             revision: 1,
             panicLimit: duration,
             panicEndElapsed: duration,
@@ -308,9 +315,13 @@ export const useLockinStore = create<LockinStore>()(
           showPanicModal: true,
           activeArchiveId: null,
           activeArchiveLabel: null,
+          setupStep: "idle",
+          setupTaskName: null,
+          setupPanicLimit: null,
+          setupEstimatedDuration: null,
+          setupContinueSessionData: null,
         });
-      },
-      startNextQueuedTask: () => {
+      },      startNextQueuedTask: () => {
         const { queue } = get();
         if (queue.length > 0) {
           const nextTask = queue[0];
@@ -435,7 +446,7 @@ export const useLockinStore = create<LockinStore>()(
         }
       },
       toggleTodo: (index) => {
-        const { session, soundEnabled } = get();
+        const { session, soundEnabled, elapsed } = get();
         if (session && session.todos && session.todos.length > 0) {
           let todoIdx = index;
           if (todoIdx === -1) {
@@ -443,14 +454,81 @@ export const useLockinStore = create<LockinStore>()(
           }
           if (todoIdx !== -1 && todoIdx >= 0 && todoIdx < session.todos.length) {
             const wasCompleted = session.todos[todoIdx].completed;
-            const updated = session.todos.map((todo, idx) =>
-              idx === todoIdx ? { ...todo, completed: !todo.completed } : todo
-            );
+            const updated = session.todos.map((todo, idx) => {
+              if (idx === todoIdx) {
+                const isMarkingComplete = !todo.completed;
+                let updatedTodo = { ...todo, completed: isMarkingComplete };
+                
+                // If marking complete and timer is running, stop it
+                if (isMarkingComplete && todo.isTimerRunning) {
+                  const addedDuration = elapsed - (todo.timerStartElapsed || elapsed);
+                  updatedTodo = {
+                    ...updatedTodo,
+                    isTimerRunning: false,
+                    timerDuration: (todo.timerDuration || 0) + addedDuration,
+                    timerStartElapsed: undefined,
+                    timerTargetElapsed: undefined
+                  };
+                }
+                return updatedTodo;
+              }
+              return todo;
+            });
+
             set({ session: { ...session, todos: updated } });
             // Play pop sound when marking as complete (not when unchecking)
             if (!wasCompleted && soundEnabled) {
               try { playPopSound(); } catch (e) { console.warn("Pop sound play failed", e); }
             }
+          }
+        }
+      },
+      toggleTodoTimer: (index, duration) => {
+        const { session, elapsed } = get();
+        if (session && session.todos && index >= 0 && index < session.todos.length) {
+          const updated = session.todos.map((todo, idx) => {
+            if (idx === index) {
+              const isStarting = !todo.isTimerRunning;
+              if (isStarting) {
+                return { 
+                  ...todo, 
+                  isTimerRunning: true, 
+                  timerStartElapsed: elapsed,
+                  timerTargetElapsed: duration ? elapsed + duration : undefined
+                };
+              } else {
+                const addedDuration = elapsed - (todo.timerStartElapsed || elapsed);
+                return {
+                  ...todo,
+                  isTimerRunning: false,
+                  timerDuration: (todo.timerDuration || 0) + addedDuration,
+                  timerStartElapsed: undefined,
+                  timerTargetElapsed: undefined
+                };
+              }
+            }
+            // Pause other todo timers when a new one starts
+            if (todo.isTimerRunning) {
+              const addedDuration = elapsed - (todo.timerStartElapsed || elapsed);
+              return {
+                ...todo,
+                isTimerRunning: false,
+                timerDuration: (todo.timerDuration || 0) + addedDuration,
+                timerStartElapsed: undefined,
+                timerTargetElapsed: undefined
+              };
+            }
+            return todo;
+          });
+          set({ session: { ...session, todos: updated } });
+        }
+      },
+      toggleTodoTimerByText: (text, duration) => {
+        const { session, toggleTodoTimer } = get();
+        if (session && session.todos) {
+          const idx = session.todos.findIndex(t => t.text.toLowerCase() === text.toLowerCase());
+          if (idx !== -1) {
+            toggleTodoTimer(idx, duration);
           }
         }
       },
@@ -749,6 +827,10 @@ export const useLockinStore = create<LockinStore>()(
         return {};
       }),
       initiateSessionSetup: (taskName, options) => {
+        if (options?.panicLimit) {
+          get().startPanicSession(taskName, options.panicLimit, options.panicLimit, 3);
+          return;
+        }
         set({
           setupTaskName: taskName,
           setupPanicLimit: options?.panicLimit ?? null,

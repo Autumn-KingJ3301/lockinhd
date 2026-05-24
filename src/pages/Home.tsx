@@ -66,6 +66,7 @@ export const Home = () => {
   const addNote = useLockinStore((state) => state.addNote);
   const addTodo = useLockinStore((state) => state.addTodo);
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
+  const toggleTodoTimerByText = useLockinStore((state) => state.toggleTodoTimerByText);
   const removeTodo = useLockinStore((state) => state.removeTodo);
   const addSidetrack = useLockinStore((state) => state.addSidetrack);
   const setDismissedSuggestions = useLockinStore((state) => state.setDismissedSuggestions);
@@ -636,18 +637,26 @@ export const Home = () => {
     }
 
     if (cmdName === "timer") {
-      if (mode === "active") {
+      if (mode === "active" || mode === "panic") {
         const secondsToken = tokens.find(t => t.schema?.type === "duration");
+        const todoToken = tokens.find(t => t.schema?.name === "todo");
         const seconds = parseDuration(secondsToken?.value || "") || 0;
-        if (seconds > 0) {
+        
+        if (todoToken) {
+          toggleTodoTimerByText(todoToken.value, seconds > 0 ? seconds : undefined);
+          setToastMsg(seconds > 0 
+            ? `Sub-timer started for ${formatSummaryDuration(seconds)} on: ${todoToken.value}`
+            : `Todo timer toggled for: ${todoToken.value}`
+          );
+        } else if (seconds > 0) {
           const hasSign = input.includes("+") || input.includes("-");
           setSessionTimer(seconds, hasSign);
-          setToastMsg(`Timer set: ${formatSummaryDuration(seconds)}`);
+          setToastMsg(`Session timer set: ${formatSummaryDuration(seconds)}`);
         } else {
-          setToastMsg("Invalid duration for /timer");
+          setToastMsg("Usage: `/timer [duration]` or `/timer [duration] [todo]`");
         }
       } else {
-        setToastMsg("/timer only works inside a standard session.");
+        setToastMsg("/timer only works inside an active or panic session.");
       }
       setInput("");
       return;

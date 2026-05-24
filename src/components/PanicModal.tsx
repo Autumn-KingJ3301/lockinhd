@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 import { SuggestionsOverlay } from "./SuggestionsOverlay";
-import { formatPanicTime, formatTimestamp } from "../utils/timeFormatters";
+import { formatPanicTime, formatTimestamp, formatTime } from "../utils/timeFormatters";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
 import { getParsedCommand } from "../utils/commandParser";
 import { useThemeStore } from "../store/useThemeStore";
@@ -149,14 +149,46 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
             <div className="section-label">Subtasks</div>
             {session.todos && session.todos.length > 0 ? (
               <div className="panic-modal-todos">
-                {session.todos.map((todo, idx) => (
-                  <div key={todo.id} className="todo-item" onClick={() => toggleTodo(idx)}>
-                    <span className="todo-checkbox">{todo.completed ? "[x]" : "[ ]"}</span>
-                    <span className={`todo-text ${todo.completed ? "completed" : ""}`}>
-                      {idx + 1}. {todo.text}
-                    </span>
-                  </div>
-                ))}
+                {session.todos.map((todo, idx) => {
+                  let currentTodoElapsed = todo.isTimerRunning 
+                    ? (todo.timerDuration || 0) + (elapsed - (todo.timerStartElapsed || elapsed))
+                    : (todo.timerDuration || 0);
+
+                  const isCountdown = todo.timerTargetElapsed !== undefined;
+                  let displayTime = currentTodoElapsed;
+                  let isExpired = false;
+
+                  if (isCountdown) {
+                    const remaining = todo.timerTargetElapsed! - elapsed;
+                    displayTime = Math.max(0, remaining);
+                    isExpired = remaining <= 0;
+                  }
+
+                  return (
+                    <div
+                      key={todo.id}
+                      className={`todo-item ${todo.isTimerRunning ? "timer-running" : ""} ${isExpired ? "subtimer-expired" : ""}`}
+                      onClick={() => toggleTodo(idx)}
+                    >
+                      <span className="todo-checkbox">{todo.completed ? "[x]" : "[ ]"}</span>
+                      <span className={`todo-text ${todo.completed ? "completed" : ""}`} style={{ flexGrow: 1 }}>
+                        {idx + 1}. {todo.text}
+                      </span>
+                      
+                      {(currentTodoElapsed > 0 || todo.isTimerRunning || isCountdown) && (
+                        <span style={{ 
+                          fontSize: "10px", 
+                          color: todo.isTimerRunning ? "var(--color-accent)" : "var(--color-muted)", 
+                          marginRight: "4px", 
+                          fontFamily: "var(--font-mono)",
+                          fontWeight: isExpired ? "bold" : "normal"
+                        }}>
+                          {isCountdown ? (isExpired ? "00:00" : formatTime(displayTime)) : formatTime(displayTime)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="panic-modal-empty">

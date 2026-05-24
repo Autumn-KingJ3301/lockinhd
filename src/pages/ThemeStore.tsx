@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useThemeStore } from "../store/useThemeStore";
 import { playWarningForTheme } from "../utils/audioSynth";
@@ -6,6 +6,15 @@ import type { ThemeConfig } from "../themes/types";
 
 export const ThemeStore: React.FC = () => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") navigate("/");
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [navigate]);
+
   const activeThemeId = useThemeStore((state) => state.activeThemeId);
   const customThemes = useThemeStore((state) => state.customThemes);
   const applyTheme = useThemeStore((state) => state.applyTheme);
