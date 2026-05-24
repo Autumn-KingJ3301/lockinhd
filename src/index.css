@@ -5,9 +5,9 @@
   --accent-hue: 38;
   --accent-sat: 92%;
   --accent-lightness: 50%;
-  --color-accent: hsl(var(--accent-hue), var(--accent-sat), var(--accent-lightness));
-  --color-accent-bg: hsla(var(--accent-hue), var(--accent-sat), var(--accent-lightness), 0.08);
-  --color-accent-border: hsla(var(--accent-hue), var(--accent-sat), var(--accent-lightness), 0.3);
+  --color-accent: var(--theme-color-panic, hsl(var(--accent-hue), var(--accent-sat), var(--accent-lightness)));
+  --color-accent-bg: var(--theme-color-panic-bg, hsla(var(--accent-hue), var(--accent-sat), var(--accent-lightness), 0.08));
+  --color-accent-border: var(--theme-color-panic-border, hsla(var(--accent-hue), var(--accent-sat), var(--accent-lightness), 0.3));
 
   /* Success color: Muted Green */
   --success-hue: 142;
@@ -20,9 +20,9 @@
   --panic-hue: 0;
   --panic-sat: 84%;
   --panic-lightness: 60%;
-  --color-panic: hsl(var(--panic-hue), var(--panic-sat), var(--panic-lightness));
-  --color-panic-bg: hsla(var(--panic-hue), var(--panic-sat), var(--panic-lightness), 0.08);
-  --color-panic-border: hsla(var(--panic-hue), var(--panic-sat), var(--panic-lightness), 0.35);
+  --color-panic: var(--theme-color-panic, hsl(var(--panic-hue), var(--panic-sat), var(--panic-lightness)));
+  --color-panic-bg: var(--theme-color-panic-bg, hsla(var(--panic-hue), var(--panic-sat), var(--panic-lightness), 0.08));
+  --color-panic-border: var(--theme-color-panic-border, hsla(var(--panic-hue), var(--panic-sat), var(--panic-lightness), 0.35));
 
   /* Warning color: Soft Yellow/Orange (Amber-ish) */
   --warning-hue: 45;
@@ -49,40 +49,40 @@
   --surface-dark: #18181b;
 
   /* Dynamic Adaptive Tokens */
-  --color-bg: light-dark(var(--bg-light), var(--bg-dark));
-  --color-text: light-dark(var(--text-light), var(--text-dark));
-  --color-muted: light-dark(var(--muted-light), var(--muted-dark));
-  --color-border: light-dark(var(--border-light), var(--border-dark));
-  --color-card-bg: light-dark(var(--card-bg-light), var(--card-bg-dark));
-  --color-surface: light-dark(var(--surface-light), var(--surface-dark));
-  --floating-timer-bg: light-dark(rgba(250, 250, 250, 0.75), rgba(9, 9, 11, 0.75));
+  --color-bg: var(--theme-color-container-bg, light-dark(var(--bg-light), var(--bg-dark)));
+  --color-text: var(--theme-color-text, light-dark(var(--text-light), var(--text-dark)));
+  --color-muted: var(--theme-color-muted, light-dark(var(--muted-light), var(--muted-dark)));
+  --color-border: var(--theme-color-panic-border, light-dark(var(--border-light), var(--border-dark)));
+  --color-card-bg: var(--theme-color-container-bg, light-dark(var(--card-bg-light), var(--card-bg-dark)));
+  --color-surface: var(--theme-color-panic-bg, light-dark(var(--surface-light), var(--surface-dark)));
+  --floating-timer-bg: var(--theme-color-overlay-bg, light-dark(rgba(250, 250, 250, 0.75), rgba(9, 9, 11, 0.75)));
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: var(--theme-font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  --font-mono: var(--theme-font-mono, 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
 }
 
 /* Fallback for browsers without light-dark support */
 @supports not (color: light-dark(white, black)) {
   :root {
-    --color-bg: var(--bg-light);
-    --color-text: var(--text-light);
-    --color-muted: var(--muted-light);
-    --color-border: var(--border-light);
-    --color-card-bg: var(--card-bg-light);
-    --color-surface: var(--surface-light);
-    --floating-timer-bg: rgba(250, 250, 250, 0.75);
+    --color-bg: var(--theme-color-container-bg, var(--bg-light));
+    --color-text: var(--theme-color-text, var(--text-light));
+    --color-muted: var(--theme-color-muted, var(--muted-light));
+    --color-border: var(--theme-color-panic-border, var(--border-light));
+    --color-card-bg: var(--theme-color-container-bg, var(--card-bg-light));
+    --color-surface: var(--theme-color-panic-bg, var(--surface-light));
+    --floating-timer-bg: var(--theme-color-overlay-bg, rgba(250, 250, 250, 0.75));
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --color-bg: var(--bg-dark);
-      --color-text: var(--text-dark);
-      --color-muted: var(--muted-dark);
-      --color-border: var(--border-dark);
-      --color-card-bg: var(--card-bg-dark);
-      --color-surface: var(--surface-dark);
-      --floating-timer-bg: rgba(9, 9, 11, 0.75);
+      --color-bg: var(--theme-color-container-bg, var(--bg-dark));
+      --color-text: var(--theme-color-text, var(--text-dark));
+      --color-muted: var(--theme-color-muted, var(--muted-dark));
+      --color-border: var(--theme-color-panic-border, var(--border-dark));
+      --color-card-bg: var(--theme-color-container-bg, var(--card-bg-dark));
+      --color-surface: var(--theme-color-panic-bg, var(--surface-dark));
+      --floating-timer-bg: var(--theme-color-overlay-bg, rgba(9, 9, 11, 0.75));
     }
   }
 }
@@ -90,24 +90,24 @@
 /* Explicit class override for theme pinning */
 html.dark {
   color-scheme: dark;
-  --color-bg: var(--bg-dark);
-  --color-text: var(--text-dark);
-  --color-muted: var(--muted-dark);
-  --color-border: var(--border-dark);
-  --color-card-bg: var(--card-bg-dark);
-  --color-surface: var(--surface-dark);
-  --floating-timer-bg: rgba(9, 9, 11, 0.75);
+  --color-bg: var(--theme-color-container-bg, var(--bg-dark));
+  --color-text: var(--theme-color-text, var(--text-dark));
+  --color-muted: var(--theme-color-muted, var(--muted-dark));
+  --color-border: var(--theme-color-panic-border, var(--border-dark));
+  --color-card-bg: var(--theme-color-container-bg, var(--card-bg-dark));
+  --color-surface: var(--theme-color-panic-bg, var(--surface-dark));
+  --floating-timer-bg: var(--theme-color-overlay-bg, rgba(9, 9, 11, 0.75));
 }
 
 html.light {
   color-scheme: light;
-  --color-bg: var(--bg-light);
-  --color-text: var(--text-light);
-  --color-muted: var(--muted-light);
-  --color-border: var(--border-light);
-  --color-card-bg: var(--card-bg-light);
-  --color-surface: var(--surface-light);
-  --floating-timer-bg: rgba(250, 250, 250, 0.75);
+  --color-bg: var(--theme-color-container-bg, var(--bg-light));
+  --color-text: var(--theme-color-text, var(--text-light));
+  --color-muted: var(--theme-color-muted, var(--muted-light));
+  --color-border: var(--theme-color-panic-border, var(--border-light));
+  --color-card-bg: var(--theme-color-container-bg, var(--card-bg-light));
+  --color-surface: var(--theme-color-panic-bg, var(--surface-light));
+  --floating-timer-bg: var(--theme-color-overlay-bg, rgba(250, 250, 250, 0.75));
 }
 
 /* General Resets */
@@ -117,9 +117,14 @@ html.light {
   padding: 0;
 }
 
+html {
+  background-color: var(--color-bg);
+}
+
 body {
   font-family: var(--font-sans);
-  background-color: var(--color-bg);
+  font-weight: var(--theme-font-weight-normal, 400);
+  background-color: transparent;
   color: var(--color-text);
   min-height: 100svh;
   display: flex;
@@ -127,6 +132,10 @@ body {
   justify-content: center;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6, strong, b, .app-title, .section-label, .command-chip {
+  font-weight: var(--theme-font-weight-bold, 700);
 }
 
 #root {
@@ -144,7 +153,11 @@ body {
   width: 100%;
   max-width: 520px;
   background-color: var(--color-card-bg);
-  border: 0.5px solid var(--color-border);
+  border: var(--theme-border-width, 0.5px) solid var(--color-border);
+  border-radius: var(--theme-border-radius, 0px);
+  box-shadow: var(--theme-box-glow, none);
+  filter: drop-shadow(0 0 calc(5px * var(--theme-energy-glow-scale, 0)) var(--color-accent));
+  transition: filter 0.3s ease, border-radius 0.3s ease, border-color 0.3s ease;
   display: flex;
   flex-direction: column;
   height: 600px;
@@ -156,7 +169,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 0.5px solid var(--color-border);
+  border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
 }
 
 .app-title {
@@ -237,7 +250,7 @@ body {
   position: relative;
   /* relative parent for absolute suggestions */
   padding: 16px 20px;
-  border-top: 0.5px solid var(--color-border);
+  border-top: var(--theme-border-width, 0.5px) solid var(--color-border);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -350,7 +363,7 @@ body {
   width: auto;
   font-family: var(--font-sans);
   font-size: 21px;
-  font-weight: 400;
+  font-weight: var(--theme-font-weight-normal, 400);
   background: transparent;
   border: none;
   outline: none;
@@ -396,7 +409,7 @@ body {
   height: 6px;
   border-radius: 50%;
   background-color: var(--color-accent);
-  animation: pulse 2s infinite ease-in-out;
+  animation: pulse var(--theme-energy-speed, 2s) infinite ease-in-out;
 }
 
 @keyframes pulse {
@@ -733,13 +746,13 @@ body {
 
 .theme-toggle-btn {
   background: transparent;
-  border: 0.5px solid var(--color-border);
+  border: var(--theme-border-width, 0.5px) solid var(--color-border);
   color: var(--color-muted);
   font-family: var(--font-mono);
   font-size: 10px;
   padding: 4px 8px;
   cursor: pointer;
-  border-radius: 2px;
+  border-radius: var(--theme-border-radius, 2px);
   transition: color 0.15s, border-color 0.15s, background-color 0.15s;
 }
 
@@ -867,7 +880,11 @@ body {
   width: 100%;
   max-width: 320px;
   background-color: var(--color-card-bg);
-  border: 0.5px solid var(--color-border);
+  border: var(--theme-border-width, 0.5px) solid var(--color-border);
+  border-radius: var(--theme-border-radius, 0px);
+  box-shadow: var(--theme-box-glow, none);
+  filter: drop-shadow(0 0 calc(4px * var(--theme-energy-glow-scale, 0)) var(--color-accent));
+  transition: filter 0.3s ease, border-radius 0.3s ease, border-color 0.3s ease;
   display: flex;
   flex-direction: column;
   height: 600px;
@@ -1927,10 +1944,11 @@ html.light .panic-modal-overlay {
   left: 0;
   width: 100vw;
   height: 100vh;
-  z-index: -11; /* Behind aurora canvas */
+  z-index: -3; /* Behind aurora canvas */
   pointer-events: none;
   user-select: none;
   background: transparent;
+  transform: translateZ(0);
 }
 
 .aurora-canvas {
@@ -1938,8 +1956,8 @@ html.light .panic-modal-overlay {
   top: 0;
   left: 0;
   width: 100vw;
-  height: 38vh; /* Confined to top 38% */
-  z-index: -10;
+  height: 100vh; /* Full screen for fluid effects */
+  z-index: -2;
   pointer-events: none;
   user-select: none;
   background: transparent;
@@ -3111,6 +3129,10 @@ html.light .recurrence-modal-overlay {
   z-index: 9999;
 }
 
+.theme-effects-container.global-effects {
+  z-index: -1; /* Behind interactive UI panels but in front of background skies */
+}
+
 /* 1. Cyberpunk CRT Scanline Glitch */
 .overlay-glitch .crt-scanlines {
   position: absolute;
@@ -3213,7 +3235,8 @@ html.light .recurrence-modal-overlay {
 .doom-vignette-overlay {
   position: absolute;
   inset: 0;
-  box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.95), inset 0 0 30px rgba(255, 51, 0, 0.4);
+  box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.95), inset 0 0 calc(30px * var(--theme-energy-glow-scale, 1.0)) rgba(255, 51, 0, calc(0.4 * var(--theme-energy-opacity, 1.0)));
+  animation: doomAmbientPulse var(--theme-energy-speed, 1.5s) infinite ease-in-out;
   transition: box-shadow 0.3s ease;
 }
 
@@ -3223,6 +3246,15 @@ html.light .recurrence-modal-overlay {
 
 .doom-vignette-overlay.overtime-strobe {
   animation: doomVignetteFlash 0.25s infinite ease-in-out;
+}
+
+@keyframes doomAmbientPulse {
+  0%, 100% {
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.95), inset 0 0 calc(25px * var(--theme-energy-glow-scale, 1.0)) rgba(255, 51, 0, calc(0.3 * var(--theme-energy-opacity, 1.0)));
+  }
+  50% {
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.95), inset 0 0 calc(45px * var(--theme-energy-glow-scale, 1.0)) rgba(255, 51, 0, calc(0.6 * var(--theme-energy-opacity, 1.0)));
+  }
 }
 
 @keyframes doomVignetteFlash {
@@ -3300,9 +3332,9 @@ html.light .recurrence-modal-overlay {
   max-width: 680px !important;
   height: calc(100vh - 48px) !important;
   max-height: 800px !important;
-  border-radius: 8px;
+  border-radius: var(--theme-border-radius, 8px);
   overflow: hidden;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--color-border);
+  box-shadow: var(--theme-box-glow, 0 20px 50px rgba(0, 0, 0, 0.3)), 0 0 0 1px var(--color-border);
 }
 
 .store-header {
@@ -3396,8 +3428,8 @@ html.light .recurrence-modal-overlay {
   gap: 12px;
   padding: 16px;
   background-color: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
+  border: var(--theme-border-width, 1px) solid var(--color-border);
+  border-radius: var(--theme-border-radius, 6px);
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;

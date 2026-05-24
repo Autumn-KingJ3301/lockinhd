@@ -78,8 +78,8 @@ export const ThemeStore: React.FC = () => {
         {errorMsg && <div className="store-alert error">{errorMsg}</div>}
 
         <div className="store-intro">
-          <h2>Select focus skin for Panic Mode</h2>
-          <p>Choose an environment tailored to your focus style. Skins change typography, borders, alerts, backgrounds, and audio click tempos.</p>
+          <h2>Select global focus skin</h2>
+          <p>Choose an environment tailored to your focus style. Skins change typography, colors, borders, shadows, backgrounds, and audio click tempos globally across the workspace.</p>
         </div>
 
         {/* Skins Grid */}

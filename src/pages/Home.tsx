@@ -18,6 +18,8 @@ import { CoreLockin } from "../components/CoreLockin";
 import { FloatingTimer } from "../components/FloatingTimer";
 import { PanicModal } from "../components/PanicModal";
 import { AuroraCanvas } from "../components/AuroraCanvas";
+import { ThemeEffectsOverlay } from "../components/ThemeEffectsOverlay";
+import { presets } from "../themes/presets";
 import { ArchivePanel, ArchiveConfirmBar, StashNotifBar } from "../components/ArchivePanel";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
 import { playThemeTickSound, playThemePanicExpiredAlarm, playThemeWarningSound } from "../utils/audioSynth";
@@ -111,6 +113,13 @@ export const Home = () => {
   const discardStash = useLockinStore((state) => state.discardStash);
   const closeArchive = useLockinStore((state) => state.closeArchive);
   const activeArchiveId = useLockinStore((state) => state.activeArchiveId);
+
+  const activeTheme = useThemeStore((state) => {
+    const id = state.activeThemeId;
+    if (id === "default") return null;
+    return state.customThemes.find((t) => t.id === id) || presets.find((t) => t.id === id) || null;
+  });
+  const overlayType = activeTheme?.styles.effects.overlayType || "none";
 
   const energyRating =
     ((mode === "active" || mode === "panic") && session)
@@ -443,7 +452,13 @@ export const Home = () => {
     const trimmedInput = targetInput.trim();
     if (!trimmedInput.startsWith("/")) {
       if (mode === "idle") {
-        if (trimmedInput) initiateSessionSetup(trimmedInput);
+        if (trimmedInput) {
+          initiateSessionSetup(trimmedInput);
+        } else if (queue.length > 0) {
+          const nextTask = queue[0];
+          deleteQueueItem(nextTask.id);
+          initiateSessionSetup(nextTask.text);
+        }
       } else if (mode === "active" || mode === "panic") {
         if (trimmedInput) {
           addNote(trimmedInput);
@@ -455,12 +470,7 @@ export const Home = () => {
           processCurrentTriage("keep");
           setInput("");
         } else if (trimmedInput === "") {
-          if (queue.length > 0) {
-            const nextTask = queue[0];
-            deleteQueueItem(nextTask.id);
-            initiateSessionSetup(nextTask.text);
-          }
-          else exitWrapMode();
+          exitWrapMode();
         } else {
           setResumeCueToLastSession(trimmedInput);
           setToastMsg("Resume cue saved! Starting fresh.");
@@ -1002,8 +1012,8 @@ export const Home = () => {
       placeholderText = "[Q] queue  [S] start next  [D] delete  [↵] keep in inbox";
       hintText = `triaging sidetrack ${activeTriageIndex + 1} of ${triageSidetracks.length} — press a key`;
     } else if (queue.length > 0) {
-      placeholderText = "type resume cue + ↵ to save, or ↵ to start next";
-      hintText = "type where to pick up next time, then ↵";
+      placeholderText = "type resume cue + ↵ to save, or ↵ to go idle";
+      hintText = "type where to pick up next time, then ↵ (or just ↵ to go idle)";
     } else {
       placeholderText = "type a resume cue + ↵, or just ↵ to go idle";
       hintText = "leave a breadcrumb for your next session, then ↵";
@@ -1039,6 +1049,12 @@ export const Home = () => {
         heightMultiplier={3.0}
         waveSpeedMultiplier={1.9}
         raySpeedMultiplier={1}
+      />
+      <ThemeEffectsOverlay
+        type={showPanicModal ? "none" : overlayType}
+        isCritical={false}
+        isOvertime={false}
+        isGlobal={true}
       />
       {/* Utility Toolbar */}
       <Toolbar />

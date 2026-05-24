@@ -55,6 +55,8 @@ export interface ThemeStyles {
   };
   effects: {
     overlayType?: "matrix" | "glitch" | "zen" | "doom" | "none";
+    skyType?: "aurora" | "moonlight" | "sunny" | "sunset" | "starry" | "none";
+    skyColors?: string[];
     "--theme-text-glow"?: string;
     "--theme-box-glow"?: string;
     "--theme-critical-animation"?: string;

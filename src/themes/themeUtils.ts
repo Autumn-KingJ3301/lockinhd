@@ -59,8 +59,19 @@ export function validateTheme(theme: any): ThemeConfig {
     throw new Error(`Invalid overlayType '${overlayType}'. Must be 'matrix', 'glitch', 'zen', 'doom', or 'none'.`);
   }
 
+  const skyType = effects.skyType || "none";
+  if (!["aurora", "moonlight", "sunny", "sunset", "starry", "none"].includes(skyType)) {
+    throw new Error(`Invalid skyType '${skyType}'. Must be 'aurora', 'moonlight', 'sunny', 'sunset', 'starry', or 'none'.`);
+  }
+
+  const skyColors = Array.isArray(effects.skyColors)
+    ? effects.skyColors.map((c: any) => String(c))
+    : undefined;
+
   const stylesEffects = {
     overlayType,
+    skyType,
+    skyColors,
     "--theme-text-glow": String(effects["--theme-text-glow"] || "none"),
     "--theme-box-glow": String(effects["--theme-box-glow"] || "none"),
     "--theme-critical-animation": String(effects["--theme-critical-animation"] || "none"),
@@ -166,7 +177,9 @@ export function themeToCssVars(theme: ThemeConfig): React.CSSProperties {
 
   // Map effects
   Object.entries(theme.styles.effects).forEach(([key, val]) => {
-    if (key !== "overlayType" && val) vars[key] = val;
+    if (key.startsWith("--theme-") && typeof val === "string") {
+      vars[key] = val;
+    }
   });
 
   return vars as React.CSSProperties;

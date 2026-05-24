@@ -36,6 +36,8 @@ export const presets: ThemeConfig[] = [
       },
       effects: {
         overlayType: "glitch",
+        skyType: "sunset",
+        skyColors: ["#0f081d", "#2b0a3d", "#5a085c", "#ff007f", "#00f0ff"],
         "--theme-text-glow": "0 0 8px rgba(0, 240, 255, 0.6), 0 0 15px rgba(0, 240, 255, 0.3)",
         "--theme-box-glow": "0 0 15px rgba(255, 0, 127, 0.25), inset 0 0 10px rgba(255, 0, 127, 0.1)",
         "--theme-critical-animation": "glitch-fast 0.15s infinite",
@@ -101,6 +103,8 @@ export const presets: ThemeConfig[] = [
       },
       effects: {
         overlayType: "matrix",
+        skyType: "starry",
+        skyColors: ["#000a00", "#002200", "#00ff00"],
         "--theme-text-glow": "0 0 10px rgba(0, 255, 0, 0.8), 0 0 20px rgba(0, 255, 0, 0.4)",
         "--theme-box-glow": "0 0 20px rgba(0, 255, 0, 0.2)",
         "--theme-critical-animation": "matrix-flicker 0.2s infinite",
@@ -165,6 +169,8 @@ export const presets: ThemeConfig[] = [
       },
       effects: {
         overlayType: "zen",
+        skyType: "moonlight",
+        skyColors: ["#0d1a26", "#1c3247", "#32506d", "#789dab", "#fcfdfe"],
         "--theme-text-glow": "none",
         "--theme-box-glow": "0 8px 32px rgba(120, 157, 171, 0.08)",
         "--theme-critical-animation": "none",
@@ -229,10 +235,12 @@ export const presets: ThemeConfig[] = [
       },
       effects: {
         overlayType: "doom",
+        skyType: "sunset",
+        skyColors: ["#050000", "#1a0202", "#4a0606", "#990000", "#ff3300"],
         "--theme-text-glow": "0 0 12px rgba(255, 51, 0, 0.9), 0 0 25px rgba(255, 51, 0, 0.5)",
         "--theme-box-glow": "0 0 25px rgba(255, 51, 0, 0.4), inset 0 0 15px rgba(255, 51, 0, 0.2)",
         "--theme-critical-animation": "doom-shake 0.08s infinite, doom-strobe 0.1s infinite",
-        "--theme-heartbeat-animation": "doom-pulse 1.2s infinite ease-in-out"
+        "--theme-heartbeat-animation": "doom-pulse var(--theme-energy-speed, 1.2s) infinite ease-in-out"
       }
     },
     sounds: {

@@ -6,12 +6,14 @@ interface ThemeEffectsOverlayProps {
   type: OverlayType;
   isCritical: boolean;
   isOvertime: boolean;
+  isGlobal?: boolean;
 }
 
 export const ThemeEffectsOverlay: React.FC<ThemeEffectsOverlayProps> = ({
   type,
   isCritical,
-  isOvertime
+  isOvertime,
+  isGlobal = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -88,7 +90,7 @@ export const ThemeEffectsOverlay: React.FC<ThemeEffectsOverlayProps> = ({
   if (type === "none") return null;
 
   return (
-    <div className={`theme-effects-container overlay-${type}`}>
+    <div className={`theme-effects-container overlay-${type} ${isGlobal ? "global-effects" : ""}`}>
       {type === "matrix" && (
         <canvas
           ref={canvasRef}

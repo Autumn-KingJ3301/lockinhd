@@ -4,8 +4,11 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { Profile } from "./pages/Profile";
 import { ThemeStore } from "./pages/ThemeStore";
+import { useGlobalTheme } from "./hooks/useGlobalTheme";
 
 function App() {
+  useGlobalTheme();
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
