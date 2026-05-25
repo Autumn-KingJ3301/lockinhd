@@ -23,21 +23,12 @@ type BrainstormTask = {
   createdAt: number;
 };
 
-type BrainstormConnection = {
-  id: string;
-  fromId: string;
-  toId: string;
-  label?: string;
-  createdAt: number;
-};
-
 type BrainstormBoard = {
   id: string;
   title: string;
   elements: any[];
   notes: BrainstormNote[];
   tasks: BrainstormTask[];
-  connections: BrainstormConnection[];
   createdAt: number;
   updatedAt: number;
 };
@@ -57,7 +48,6 @@ const createBoard = (title = "Brainstorm Board"): BrainstormBoard => ({
   elements: [],
   notes: [],
   tasks: [],
-  connections: [],
   createdAt: Date.now(),
   updatedAt: Date.now(),
 });
@@ -86,7 +76,6 @@ const loadBoards = (): BrainstormBoard[] => {
       elements: sanitizeElements(board.elements || []),
       notes: Array.isArray(board.notes) ? board.notes : [],
       tasks: Array.isArray(board.tasks) ? board.tasks : [],
-      connections: Array.isArray(board.connections) ? board.connections : [],
       createdAt: board.createdAt || Date.now(),
       updatedAt: board.updatedAt || Date.now(),
     }));
@@ -142,10 +131,8 @@ export const Brainstorm: React.FC = () => {
   const [boards, setBoards] = useState<BrainstormBoard[]>(() => loadBoards());
   const [activeBoardId, setActiveBoardId] = useState(() => loadBoards()[0]?.id || createBoard().id);
   const [api, setApi] = useState<any>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [noteInput, setNoteInput] = useState("");
   const [taskInput, setTaskInput] = useState("");
-  const [connectionLabel, setConnectionLabel] = useState("");
   const saveTimerRef = useRef<number | null>(null);
   const sceneSignatureRef = useRef<Record<string, string>>({});
 
@@ -173,10 +160,6 @@ export const Brainstorm: React.FC = () => {
   const activeBoard = boards.find((board) => board.id === activeBoardId) || boards[0];
 
   const activeElements = activeBoard?.elements || [];
-  const selectedElements = useMemo(
-    () => selectedIds.map((id) => activeElements.find((element) => element.id === id)).filter(Boolean),
-    [activeElements, selectedIds]
-  );
 
   const updateActiveBoard = (updates: Partial<BrainstormBoard>) => {
     setBoards((current) =>
@@ -243,36 +226,6 @@ export const Brainstorm: React.FC = () => {
     }
   };
 
-  const addConnection = () => {
-    if (!api || selectedElements.length < 2) return;
-    const [from, to] = selectedElements;
-    const start = getElementCenter(from);
-    const end = getElementCenter(to);
-    const connection: BrainstormConnection = {
-      id: createId("connection"),
-      fromId: from.id,
-      toId: to.id,
-      label: connectionLabel.trim() || undefined,
-      createdAt: Date.now(),
-    };
-    const [arrow] = convertToExcalidrawElements(
-      [{
-        type: "arrow",
-        x: start.x,
-        y: start.y,
-        points: [[0, 0], [end.x - start.x, end.y - start.y]],
-        endArrowhead: "arrow",
-        strokeColor: getThemeColor("--color-accent", "#6965db"),
-        label: connection.label ? { text: connection.label, fontSize: 16 } : undefined,
-      }],
-      { regenerateIds: true }
-    );
-
-    addElements([arrow]);
-    updateActiveBoard({ connections: [...activeBoard.connections, connection] });
-    setConnectionLabel("");
-  };
-
   const createNewBoard = () => {
     const nextBoard = createBoard(`Brainstorm ${boards.length + 1}`);
     setBoards((current) => [...current, nextBoard]);
@@ -323,6 +276,28 @@ export const Brainstorm: React.FC = () => {
       </header>
 
       <main className="brainstorm-workspace">
+        <section
+          className="brainstorm-canvas"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => {
+            event.preventDefault();
+            addTextToCanvas(event.dataTransfer.getData("text/plain"), "sidetrack");
+          }}
+        >
+          <Excalidraw
+            key={`${activeBoard.id}-${excalidrawTheme}`}
+            theme={excalidrawTheme}
+            excalidrawAPI={setApi}
+            initialData={{
+              elements: activeBoard.elements,
+              appState: {
+                viewBackgroundColor: "transparent",
+              },
+            }}
+            onChange={(elements) => saveScene(elements)}
+          />
+        </section>
+
         <aside className="brainstorm-panel">
           <section className="brainstorm-section">
             <h2>Boards</h2>
@@ -384,37 +359,7 @@ export const Brainstorm: React.FC = () => {
               )) : <p className="brainstorm-empty">No queued tasks.</p>}
             </div>
           </section>
-        </aside>
 
-        <section
-          className="brainstorm-canvas"
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            addTextToCanvas(event.dataTransfer.getData("text/plain"), "sidetrack");
-          }}
-        >
-          <Excalidraw
-            key={`${activeBoard.id}-${excalidrawTheme}`}
-            theme={excalidrawTheme}
-            excalidrawAPI={setApi}
-            initialData={{
-              elements: activeBoard.elements,
-              appState: {
-                viewBackgroundColor: "transparent",
-              },
-            }}
-            onChange={(elements, appState) => {
-              const nextSelectedIds = getSelectedIds(appState);
-              setSelectedIds((current) =>
-                areStringArraysEqual(current, nextSelectedIds) ? current : nextSelectedIds
-              );
-              saveScene(elements);
-            }}
-          />
-        </section>
-
-        <aside className="brainstorm-panel">
           <section className="brainstorm-section">
             <h2>Notes</h2>
             <form
@@ -486,33 +431,6 @@ export const Brainstorm: React.FC = () => {
                   />
                   <span className={task.completed ? "completed" : ""}>{task.text}</span>
                 </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="brainstorm-section">
-            <h2>Connections</h2>
-            <div className="brainstorm-form row">
-              <input
-                value={connectionLabel}
-                onChange={(event) => setConnectionLabel(event.target.value)}
-                placeholder="Label"
-              />
-              <button
-                className="brainstorm-back-btn"
-                onClick={addConnection}
-                disabled={selectedElements.length < 2}
-                type="button"
-              >
-                Connect
-              </button>
-            </div>
-            <p className="brainstorm-empty">Selected: {selectedElements.length}</p>
-            <div className="brainstorm-card-list">
-              {activeBoard.connections.map((connection) => (
-                <div key={connection.id} className="brainstorm-card">
-                  <p>{connection.label || "Connected ideas"}</p>
-                </div>
               ))}
             </div>
           </section>
