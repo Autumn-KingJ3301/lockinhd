@@ -97,8 +97,19 @@ export const JournalAttachments: React.FC<JournalAttachmentsProps> = ({
                 {recording ? "■" : "🎙️"}
               </button>
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontSize: "11px", fontWeight: "bold" }}>
-                  {recording ? "Recording..." : "Capture voice memo"}
+                <span style={{ fontSize: "11px", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px" }}>
+                  {recording ? (
+                    <>
+                      Recording
+                      <span className="recording-wave">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </span>
+                    </>
+                  ) : (
+                    "Capture voice memo"
+                  )}
                 </span>
                 <span className="hint-text">
                   {recording ? `Timer: ${formatTimerLabel(recordTime)}` : "Max 5 minutes recommended"}

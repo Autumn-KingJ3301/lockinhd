@@ -7,7 +7,6 @@ import { mediaDb } from "../utils/mediaDb";
 import type { JournalEntry, JournalPhoto, Session } from "../types";
 
 // Subcomponents
-import { FocusBlueprint } from "../components/journal/FocusBlueprint";
 import { JournalSectionItem } from "../components/journal/JournalSectionItem";
 import { JournalSidebar } from "../components/journal/JournalSidebar";
 import { JournalAttachments } from "../components/journal/JournalAttachments";
@@ -15,7 +14,7 @@ import { FocusAnalytics } from "../components/journal/FocusAnalytics";
 
 export interface JournalSection {
   id: string;
-  type: "text" | "heading" | "todo" | "callout" | "bullet";
+  type: "text" | "heading" | "todo" | "callout" | "bullet" | "quote" | "code" | "divider" | "numbered";
   value: string;
   completed?: boolean;
 }
@@ -47,8 +46,6 @@ export const Journal: React.FC = () => {
   const journalsLoading = useLockinStore((s) => s.journalsLoading);
   const sessions = useLockinStore((s) => s.sessions);
   const idleSidetracks = useLockinStore((s) => s.idleSidetracks);
-  const boards = useLockinStore((s) => s.boards);
-  const archives = useLockinStore((s) => s.archives);
   const saveJournalEntry = useLockinStore((s) => s.saveJournalEntry);
   const deleteJournalEntry = useLockinStore((s) => s.deleteJournalEntry);
   const setToastMsg = useLockinStore((s) => s.setToastMsg);
@@ -67,6 +64,11 @@ export const Journal: React.FC = () => {
   const [sections, setSections] = useState<JournalSection[]>([]);
   const [newlyCreatedSectionId, setNewlyCreatedSectionId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"editor" | "analytics">("editor");
+  const [showHistory, setShowHistory] = useState(true);
+  const [showAttachments, setShowAttachments] = useState(true);
+  const [slashMenu, setSlashMenu] = useState<{ sectionId: string; query: string; index: number; } | null>(null);
+  const [slashMenuIndex, setSlashMenuIndex] = useState(0);
+  const [activeTone, setActiveTone] = useState<string>("minimalist");
 
   // Audio recording states
   const [recording, setRecording] = useState(false);
@@ -134,6 +136,23 @@ export const Journal: React.FC = () => {
     }
   }, [activeEntry?.id]);
 
+  // Programmatic focus effect for Notion blocks
+  useEffect(() => {
+    if (newlyCreatedSectionId) {
+      const el = document.querySelector(`[data-section-id="${newlyCreatedSectionId}"]`) as HTMLElement | null;
+      if (el) {
+        el.focus();
+        // Move selection cursor to the end of the text if it's an input/textarea
+        if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+          const len = el.value.length;
+          if (el.setSelectionRange) {
+            el.setSelectionRange(len, len);
+          }
+        }
+      }
+    }
+  }, [newlyCreatedSectionId]);
+
   // Cleanup audio recording on unmount
   useEffect(() => {
     return () => {
@@ -151,55 +170,7 @@ export const Journal: React.FC = () => {
       j.date.includes(searchQuery)
   );
 
-  // Auto-creation / Load today's reflection on mount
-  useEffect(() => {
-    if (journalsLoading) return;
-
-    const todayStr = new Date().toISOString().split("T")[0];
-    const existing = journals.find((j) => j.date === todayStr);
-
-    if (existing) {
-      if (!activeEntry) {
-        setActiveEntry(existing);
-      }
-    } else {
-      const newEntry: JournalEntry = {
-        id: "journal_" + Date.now(),
-        createdAt: Date.now(),
-        date: todayStr,
-        title: `Reflections for ${new Date().toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })}`,
-        content: "",
-        sessionsSnapshot: [],
-        idleSidetracksSnapshot: [],
-        photos: [],
-        voiceMemos: [],
-      };
-
-      // Save instantly to store
-      saveJournalEntry(newEntry);
-      setActiveEntry(newEntry);
-      setToastMsg("Journal automatically created for today!");
-    }
-  }, [journalsLoading, journals, activeEntry]);
-
-  // Merge boards across current workspace and archives for activity tracking
-  const getMergedBoards = () => {
-    const allBoards = [...boards];
-    archives.forEach(arc => {
-      if (arc.boards) {
-        arc.boards.forEach(b => {
-          if (!allBoards.some(existing => existing.id === b.id)) {
-            allBoards.push(b);
-          }
-        });
-      }
-    });
-    return allBoards;
-  };
+  // Mount effect auto-creation was moved lower in the file to resolve declaration dependencies
 
   // Enforce single reflection entry per day on date picker change
   const handleDateChange = (newDate: string) => {
@@ -258,6 +229,102 @@ export const Journal: React.FC = () => {
 
     return completedLogs;
   };
+
+  const generateTemplate = (tone: string, dateStr: string): JournalSection[] => {
+    const sessions = getSessionsForDate(dateStr);
+    const sidetracks = getSidetracksForDate(dateStr);
+
+    const totalSeconds = sessions.reduce((acc, s) => acc + (s.duration || 0), 0);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const timeStr = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+    const blocksCount = sessions.length;
+    const sidetracksCount = (sessions.reduce((acc, s) => acc + (s.sidetracks?.length || 0), 0) || 0) + (sidetracks?.length || 0);
+
+    const idGen = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+    switch (tone) {
+      case "stoic":
+        return [
+          { id: idGen("h"), type: "heading", value: "Stoic Reflection & Journal" },
+          { id: idGen("q"), type: "quote", value: "First say to yourself what you would be; and then do what you have to do. — Epictetus" },
+          { id: idGen("d"), type: "divider", value: "" },
+          { id: idGen("h"), type: "heading", value: "What was within my control today?" },
+          { id: idGen("c"), type: "callout", value: `Conducted ${blocksCount} focus sessions, totaling ${timeStr} of deliberate effort. The rest is external noise.` },
+          { id: idGen("t"), type: "text", value: `We registered ${sidetracksCount} distraction(s) today. Rather than being frustrated, we accept them as opportunities to practice returning attention.` },
+          { id: idGen("h"), type: "heading", value: "Mindfulness & self-correction checklist:" },
+          { id: idGen("todo"), type: "todo", value: "I acted in accordance with reason and virtue today", completed: false },
+          { id: idGen("todo"), type: "todo", value: "I did not let external distractions dictate my emotional state", completed: false }
+        ];
+      case "optimist":
+      default:
+        return [
+          { id: idGen("h"), type: "heading", value: "🌟 Today was an Incredible Day!" },
+          { id: idGen("q"), type: "quote", value: "Write it on your heart that every day is the best day in the year. — Ralph Waldo Emerson" },
+          { id: idGen("d"), type: "divider", value: "" },
+          { id: idGen("c"), type: "callout", value: `We registered ${blocksCount} deep focus sessions, logging ${timeStr} of growth and progress! How amazing is that?` },
+          { id: idGen("h"), type: "heading", value: "Big Wins of the Day" },
+          ...(sessions.flatMap(s => s.todos?.filter(t => t.completed).map(t => ({ id: idGen("todo"), type: "todo" as const, value: `Celebrated completion: ${t.text}! 🥳`, completed: true })) || [])),
+          { id: idGen("t"), type: "text", value: `Even with ${sidetracksCount} minor distractions, we kept moving forward and smiled through it! Tomorrow will be even brighter.` }
+        ];
+    }
+  };
+
+  const applyTemplate = (tone: string) => {
+    if (!activeEntry) return;
+
+    const isEmpty = sections.length === 0 || (sections.length === 1 && sections[0].value === "");
+    if (!isEmpty) {
+      if (!confirm("Are you sure you want to overwrite your current journal content with this template? Any changes you made will be lost.")) {
+        return;
+      }
+    }
+
+    const newSections = generateTemplate(tone, activeEntry.date);
+    setActiveTone(tone);
+    handleUpdateSections(newSections);
+    setToastMsg(`Applied ${tone.replace("_", " ")} template!`);
+  };
+
+  // Auto-creation / Load today's reflection on mount
+  useEffect(() => {
+    if (journalsLoading) return;
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const existing = journals.find((j) => j.date === todayStr);
+
+    if (existing) {
+      if (!activeEntry) {
+        setActiveEntry(existing);
+      }
+    } else {
+      const randomTone = Math.random() < 0.5 ? "stoic" : "optimist";
+      setActiveTone(randomTone);
+      const defaultSections = generateTemplate(randomTone, todayStr);
+      const newEntry: JournalEntry = {
+        id: "journal_" + Date.now(),
+        createdAt: Date.now(),
+        date: todayStr,
+        title: `Reflections for ${new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}`,
+        content: JSON.stringify(defaultSections),
+        sessionsSnapshot: getSessionsForDate(todayStr),
+        idleSidetracksSnapshot: getSidetracksForDate(todayStr),
+        windDownSnapshot: getWindDownForDate(todayStr),
+        photos: [],
+        voiceMemos: [],
+      };
+
+      // Save instantly to store
+      saveJournalEntry(newEntry);
+      setActiveEntry(newEntry);
+      setToastMsg("Journal automatically created for today!");
+    }
+  }, [journalsLoading, journals, activeEntry]);
 
   // Check if activeEntry has unsaved edits
   const hasChanges = () => {
@@ -340,9 +407,234 @@ export const Journal: React.FC = () => {
     }
   };
 
+  const slashCommands = [
+    { id: "text", label: "Text", desc: "Plain writing block", icon: "📝", command: "/text" },
+    { id: "heading", label: "Heading", desc: "Big section title", icon: "🇭", command: "/heading" },
+    { id: "todo", label: "Todo List", desc: "Task with checkbox", icon: "☑", command: "/todo" },
+    { id: "bullet", label: "Bullet List", desc: "Simple bulleted list", icon: "•", command: "/bullet" },
+    { id: "numbered", label: "Numbered List", desc: "Sequential items list", icon: "1️⃣", command: "/numbered" },
+    { id: "quote", label: "Quote Block", desc: "Styled quote section", icon: "💬", command: "/quote" },
+    { id: "code", label: "Code Snippet", desc: "Monospace code editor", icon: "💻", command: "/code" },
+    { id: "divider", label: "Divider Line", desc: "Horizontal rule separator", icon: "➖", command: "/divider" },
+    { id: "callout", label: "Callout Box", desc: "Highlight information", icon: "💡", command: "/callout" },
+  ];
+
+  const getFilteredCommands = (query: string) => {
+    return slashCommands.filter(cmd =>
+      cmd.label.toLowerCase().includes(query.toLowerCase()) ||
+      cmd.command.toLowerCase().includes(query.toLowerCase())
+    );
+  };
+
+  const executeSlashCommand = (sectionId: string, type: JournalSection["type"]) => {
+    const updated = sections.map(s => {
+      if (s.id !== sectionId) return s;
+      return {
+        ...s,
+        type,
+        value: "", // clear command prefix
+        completed: type === "todo" ? false : undefined
+      };
+    });
+    handleUpdateSections(updated);
+    setNewlyCreatedSectionId(sectionId); // refocus
+    setSlashMenu(null);
+  };
+
   const updateSectionValue = (id: string, value: string) => {
-    const newSections = sections.map(s => s.id === id ? { ...s, value } : s);
+    // Check if user is typing a slash command
+    if (value.startsWith("/")) {
+      // Check for space after slash commands to auto-execute
+      if (value === "/todo ") {
+        executeSlashCommand(id, "todo");
+        return;
+      }
+      if (value === "/heading " || value === "/h ") {
+        executeSlashCommand(id, "heading");
+        return;
+      }
+      if (value === "/bullet ") {
+        executeSlashCommand(id, "bullet");
+        return;
+      }
+      if (value === "/callout ") {
+        executeSlashCommand(id, "callout");
+        return;
+      }
+      if (value === "/text ") {
+        executeSlashCommand(id, "text");
+        return;
+      }
+      if (value === "/quote " || value === "/q ") {
+        executeSlashCommand(id, "quote");
+        return;
+      }
+      if (value === "/code " || value === "/c ") {
+        executeSlashCommand(id, "code");
+        return;
+      }
+      if (value === "/divider " || value === "/div " || value === "--- ") {
+        executeSlashCommand(id, "divider");
+        return;
+      }
+      if (value === "/numbered " || value === "/n ") {
+        executeSlashCommand(id, "numbered");
+        return;
+      }
+
+      setSlashMenu({
+        sectionId: id,
+        query: value.slice(1),
+        index: sections.findIndex(s => s.id === id)
+      });
+      setSlashMenuIndex(0);
+    } else {
+      setSlashMenu(null);
+    }
+
+    // Check for inline markdown shortcuts (auto-transforms on space)
+    let newType: JournalSection["type"] | null = null;
+    let newValue = value;
+    let completed: boolean | undefined = undefined;
+
+    if (value === "- " || value === "* ") {
+      newType = "bullet";
+      newValue = "";
+    } else if (value === "[] " || value === "[ ] ") {
+      newType = "todo";
+      newValue = "";
+      completed = false;
+    } else if (value === "# ") {
+      newType = "heading";
+      newValue = "";
+    } else if (value === "1. ") {
+      newType = "numbered";
+      newValue = "";
+    } else if (value === "> ") {
+      newType = "quote";
+      newValue = "";
+    } else if (value === "``` ") {
+      newType = "code";
+      newValue = "";
+    } else if (value === "--- ") {
+      newType = "divider";
+      newValue = "";
+    }
+
+    const updatedSections = sections.map(s => {
+      if (s.id !== id) return s;
+      
+      return {
+        ...s,
+        type: newType || s.type,
+        value: newType ? newValue : value,
+        completed: newType === "todo" ? (completed ?? false) : (newType ? undefined : s.completed)
+      };
+    });
+
+    handleUpdateSections(updatedSections);
+  };
+
+  const insertSection = (type: JournalSection["type"], index: number) => {
+    const newId = "sec_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+    const newSection: JournalSection = {
+      id: newId,
+      type,
+      value: "",
+      completed: type === "todo" ? false : undefined
+    };
+    const newSections = [...sections];
+    newSections.splice(index + 1, 0, newSection);
+    setNewlyCreatedSectionId(newId);
     handleUpdateSections(newSections);
+  };
+
+  const handleBlockKeyDown = (e: React.KeyboardEvent, index: number) => {
+    const section = sections[index];
+    if (!section) return;
+
+    // Intercept keyboard controls if Slash Autocomplete Popover is open
+    if (slashMenu && slashMenu.sectionId === section.id) {
+      const filtered = getFilteredCommands(slashMenu.query);
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashMenuIndex(prev => (prev + 1) % Math.max(1, filtered.length));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashMenuIndex(prev => (prev - 1 + filtered.length) % Math.max(1, filtered.length));
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const selectedCmd = filtered[slashMenuIndex];
+        if (selectedCmd) {
+          executeSlashCommand(section.id, selectedCmd.id as JournalSection["type"]);
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setSlashMenu(null);
+        return;
+      }
+    }
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      // Insert a new text block below
+      insertSection("text", index);
+    } else if (e.key === "Backspace") {
+      const target = e.target as HTMLElement;
+      const isStart = (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+        ? (target.selectionStart === 0 && target.selectionEnd === 0)
+        : true;
+
+      if (isStart || section.value === "") {
+        e.preventDefault();
+        if (section.type !== "text") {
+          // Convert special block to text block
+          const updated = sections.map(s => s.id === section.id ? { ...s, type: "text" as const, completed: undefined } : s);
+          handleUpdateSections(updated);
+          setNewlyCreatedSectionId(section.id); // refocus
+        } else {
+          // Delete standard text block
+          if (sections.length > 1) {
+            const prevSection = sections[index - 1];
+            const newSections = sections.filter(s => s.id !== section.id);
+            handleUpdateSections(newSections);
+            if (prevSection) {
+              setNewlyCreatedSectionId(prevSection.id);
+            }
+          }
+        }
+      }
+    } else if (e.key === "ArrowUp") {
+      const target = e.target as HTMLElement;
+      const isStart = (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+        ? (target.selectionStart === 0 && target.selectionEnd === 0)
+        : true;
+      if (isStart) {
+        const prevSection = sections[index - 1];
+        if (prevSection) {
+          e.preventDefault();
+          setNewlyCreatedSectionId(prevSection.id);
+        }
+      }
+    } else if (e.key === "ArrowDown") {
+      const target = e.target as HTMLElement;
+      const isEnd = (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
+        ? (target.selectionStart === target.value.length && target.selectionEnd === target.value.length)
+        : true;
+      if (isEnd) {
+        const nextSection = sections[index + 1];
+        if (nextSection) {
+          e.preventDefault();
+          setNewlyCreatedSectionId(nextSection.id);
+        }
+      }
+    }
   };
 
   const toggleTodoSection = (id: string) => {
@@ -571,13 +863,75 @@ export const Journal: React.FC = () => {
           animation: fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
+        .journal-sidebar-container {
+          width: 280px;
+          transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          overflow: hidden;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          border-right: var(--theme-border-width, 0.5px) solid var(--color-border);
+        }
+
+        .journal-sidebar-container.collapsed {
+          width: 0;
+          opacity: 0;
+          border-right: none;
+          pointer-events: none;
+        }
+
+        .journal-attachments-container {
+          width: 320px;
+          transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          overflow: hidden;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          border-left: var(--theme-border-width, 0.5px) solid var(--color-border);
+        }
+
+        .journal-attachments-container.collapsed {
+          width: 0;
+          opacity: 0;
+          border-left: none;
+          pointer-events: none;
+        }
+
         .journal-sidebar {
           width: 280px;
-          border-right: var(--theme-border-width, 0.5px) solid var(--color-border);
+          height: 100%;
           background-color: var(--color-bg);
           display: flex;
           flex-direction: column;
           flex-shrink: 0;
+        }
+
+        .journal-icon-btn {
+          background: var(--color-surface);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          color: var(--color-muted);
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          font-size: 14px;
+        }
+
+        .journal-icon-btn:hover {
+          background: var(--color-accent-bg);
+          border-color: var(--color-accent-border);
+          color: var(--color-accent);
+          transform: scale(1.05);
+        }
+
+        .journal-icon-btn.active {
+          color: var(--color-accent);
+          background: var(--color-accent-bg);
+          border-color: var(--color-accent-border);
         }
 
         .journal-sidebar-header {
@@ -630,8 +984,12 @@ export const Journal: React.FC = () => {
         }
 
         .journal-list-item.active {
-          background-color: var(--color-accent-bg);
+          background: linear-gradient(135deg, var(--color-accent-bg), rgba(var(--accent-hue, 38), 92%, 50%, 0.12));
           border-color: var(--color-accent-border);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+        .journal-list-item.active .journal-item-title {
+          color: var(--color-accent);
         }
 
         .journal-item-title {
@@ -700,11 +1058,28 @@ export const Journal: React.FC = () => {
         }
 
         .journal-editor-header {
-          padding: 20px;
+          padding: 24px 30px;
           border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
+        }
+
+        .journal-editor-header-inner {
+          max-width: 720px;
+          width: 100%;
+          margin: 0 auto;
           display: flex;
           flex-direction: column;
           gap: 16px;
+        }
+
+        .journal-editor-body {
+          padding: 24px 30px;
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+          flex-grow: 1;
+          max-width: 780px; /* 720px + padding */
+          width: 100%;
+          margin: 0 auto;
         }
 
         .journal-title-row {
@@ -814,14 +1189,6 @@ export const Journal: React.FC = () => {
           color: var(--color-success);
           background-color: var(--color-success-bg);
           border-color: var(--color-success);
-        }
-
-        .journal-editor-body {
-          padding: 20px 24px;
-          display: flex;
-          flex-direction: column;
-          gap: 20px;
-          flex-grow: 1;
         }
 
         /* Focus Blueprint styles (Non-collapsible integrated section) */
@@ -1266,26 +1633,190 @@ export const Journal: React.FC = () => {
           opacity: 0.4;
         }
 
+        /* Tone templates selector bar */
+        .tone-template-selector {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 16px;
+          background: var(--color-surface);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-radius: 8px;
+          width: 100%;
+          margin-bottom: 16px;
+        }
+        .tone-label {
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--color-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          user-select: none;
+        }
+        .tone-buttons {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        .tone-btn {
+          padding: 4px 10px;
+          border-radius: 4px;
+          border: 0.5px solid var(--color-border);
+          background-color: var(--color-card-bg);
+          color: var(--color-text);
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .tone-btn:hover {
+          background-color: var(--color-accent-bg);
+          color: var(--color-accent);
+          border-color: var(--color-accent-border);
+        }
+        .tone-btn.active {
+          background-color: var(--color-accent);
+          color: var(--color-bg);
+          border-color: var(--color-accent);
+        }
+
+        /* Block inputs for Quote, Code, Numbered, Divider */
+        .section-input-quote {
+          width: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--color-text);
+          font-family: var(--font-sans);
+          font-size: 15px;
+          font-style: italic;
+          line-height: 1.6;
+          resize: none;
+          padding: 4px 0;
+          border-left: 3px solid var(--color-muted);
+          padding-left: 12px;
+        }
+        .section-input-quote:focus {
+          border-left-color: var(--color-accent-border);
+        }
+        .section-input-quote::placeholder {
+          color: var(--color-muted);
+          opacity: 0.4;
+        }
+
+        .section-input-code {
+          width: 100%;
+          background-color: var(--color-surface);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-radius: 6px;
+          outline: none;
+          color: var(--color-text);
+          font-family: var(--font-mono);
+          font-size: 13px;
+          line-height: 1.5;
+          resize: none;
+          padding: 10px;
+          margin: 4px 0;
+        }
+        .section-input-code:focus {
+          border-color: var(--color-accent-border);
+          box-shadow: 0 0 0 2px var(--color-accent-bg);
+        }
+        .section-input-code::placeholder {
+          color: var(--color-muted);
+          opacity: 0.4;
+        }
+
+        .section-divider-wrapper {
+          width: 100%;
+          padding: 12px 0;
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+          outline: none;
+        }
+        .section-divider-line {
+          width: 100%;
+          height: 1px;
+          background-color: var(--color-border);
+          transition: all 0.2s ease;
+        }
+        .section-divider-wrapper:focus .section-divider-line {
+          background-color: var(--color-accent);
+          box-shadow: 0 0 4px var(--color-accent-bg);
+        }
+
+        .section-numbered-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          width: 100%;
+          padding-left: 6px;
+        }
+        .section-numbered-index {
+          color: var(--color-accent);
+          font-family: var(--font-mono);
+          font-size: 14.5px;
+          font-weight: 600;
+          min-width: 18px;
+          text-align: right;
+          user-select: none;
+          margin-top: 3px;
+        }
+        .section-numbered-text {
+          width: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--color-text);
+          font-family: var(--font-sans);
+          font-size: 14.5px;
+          line-height: 1.6;
+          border-left: 2px solid transparent;
+        }
+        .section-numbered-text:focus {
+          border-left-color: var(--color-accent-border);
+        }
+        .section-numbered-text::placeholder {
+          color: var(--color-muted);
+          opacity: 0.4;
+        }
+
         /* Block Toolbar */
         .block-toolbar {
+          position: sticky;
+          bottom: 24px;
+          z-index: 100;
           display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          padding: 12px;
-          border-top: var(--theme-border-width, 0.5px) dashed var(--color-border);
-          margin-top: 24px;
-          background-color: var(--color-surface);
-          border-radius: 8px;
+          justify-content: center;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 16px;
+          background: var(--floating-timer-bg);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-radius: 9999px;
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+          margin: 24px auto 0 auto;
+          width: max-content;
+          transition: all 0.2s ease;
+        }
+
+        .block-toolbar:hover {
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+          border-color: var(--color-accent-border);
         }
 
         .toolbar-block-btn {
           padding: 6px 12px;
-          background-color: var(--color-card-bg);
-          border: var(--theme-border-width, 0.5px) solid var(--color-border);
-          border-radius: 6px;
+          background-color: transparent;
+          border: none;
+          border-radius: 9999px;
           font-family: var(--font-sans);
-          font-size: 12px;
-          color: var(--color-text);
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--color-muted);
           cursor: pointer;
           transition: all 0.2s;
           display: flex;
@@ -1296,9 +1827,67 @@ export const Journal: React.FC = () => {
 
         .toolbar-block-btn:hover {
           background-color: var(--color-accent-bg);
-          border-color: var(--color-accent-border);
           color: var(--color-accent);
           transform: translateY(-1px);
+        }
+
+        /* Custom Todo Checkbox */
+        .custom-todo-checkbox {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 1.5px solid var(--color-muted);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          margin-top: 4px;
+          flex-shrink: 0;
+          font-size: 10px;
+          font-weight: bold;
+          color: transparent;
+          transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          user-select: none;
+        }
+        
+        .custom-todo-checkbox:hover {
+          border-color: var(--color-accent);
+          background-color: var(--color-accent-bg);
+          color: var(--color-accent);
+        }
+        
+        .custom-todo-checkbox.completed {
+          background-color: var(--color-success);
+          border-color: var(--color-success);
+          color: #fff;
+        }
+
+        /* Recording Wave Animation */
+        .recording-wave {
+          display: inline-flex;
+          align-items: center;
+          gap: 2.5px;
+          height: 12px;
+          margin-left: 2px;
+        }
+        .recording-wave span {
+          width: 2px;
+          height: 6px;
+          background-color: var(--color-panic);
+          border-radius: 1px;
+          animation: wavePulse 0.8s ease-in-out infinite alternate;
+        }
+        .recording-wave span:nth-child(2) {
+          animation-delay: 0.15s;
+          height: 10px;
+        }
+        .recording-wave span:nth-child(3) {
+          animation-delay: 0.3s;
+          height: 4px;
+        }
+        @keyframes wavePulse {
+          from { transform: scaleY(1); }
+          to { transform: scaleY(1.8); }
         }
 
         /* Attachments Right Sidebar styles */
@@ -1564,6 +2153,85 @@ export const Journal: React.FC = () => {
           to { opacity: 1; }
         }
 
+        .slash-menu-popover {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          margin-top: 4px;
+          z-index: 1000;
+          background: var(--floating-timer-bg);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-radius: 8px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+          width: 240px;
+          max-height: 280px;
+          overflow-y: auto;
+          padding: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          animation: slideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .slash-menu-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 6px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          user-select: none;
+        }
+
+        .slash-menu-item:hover, .slash-menu-item.active {
+          background-color: var(--color-accent-bg);
+          color: var(--color-accent);
+        }
+
+        .slash-menu-icon {
+          font-size: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          background: var(--color-surface);
+          border-radius: 4px;
+          flex-shrink: 0;
+        }
+        
+        .slash-menu-item.active .slash-menu-icon {
+          background: var(--color-accent-bg);
+        }
+
+        .slash-menu-info {
+          display: flex;
+          flex-direction: column;
+          gap: 1px;
+          overflow: hidden;
+        }
+
+        .slash-menu-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--color-text);
+        }
+
+        .slash-menu-item.active .slash-menu-label {
+          color: var(--color-accent);
+        }
+
+        .slash-menu-desc {
+          font-size: 10px;
+          color: var(--color-muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
         .analytics-container {
           width: 100%;
           max-width: 1400px;
@@ -1605,10 +2273,21 @@ export const Journal: React.FC = () => {
           alignItems: "center"
         }}
       >
-        <div className="app-title">DAILY FOCUS JOURNAL</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {activeTab === "editor" && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className={`journal-icon-btn ${showHistory ? "active" : ""}`}
+              title="Toggle Past Reflections"
+            >
+              📂
+            </button>
+          )}
+          <div className="app-title">DAILY FOCUS JOURNAL</div>
+        </div>
 
         {/* Top-Level Tabs Switcher */}
-        <div style={{ display: "flex", gap: "20px" }}>
+        <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
           <button
             onClick={() => setActiveTab("editor")}
             style={{
@@ -1647,6 +2326,17 @@ export const Journal: React.FC = () => {
           >
             📊 Analytics
           </button>
+
+          {activeTab === "editor" && activeEntry && (
+            <button
+              onClick={() => setShowAttachments(!showAttachments)}
+              className={`journal-icon-btn ${showAttachments ? "active" : ""}`}
+              title="Toggle Media & Attachments"
+              style={{ marginLeft: "10px" }}
+            >
+              📎
+            </button>
+          )}
         </div>
 
         <button
@@ -1663,16 +2353,18 @@ export const Journal: React.FC = () => {
       {activeTab === "editor" ? (
         <div className="journal-container">
           {/* Sidebar (Subcomponent) */}
-          <JournalSidebar
-            journals={journals}
-            journalsLoading={journalsLoading}
-            activeEntryId={activeEntry?.id}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            onSelectEntry={setActiveEntry}
-            onDeleteEntry={handleDeleteEntry}
-            filteredEntries={filteredEntries}
-          />
+          <div className={`journal-sidebar-container ${showHistory ? "" : "collapsed"}`}>
+            <JournalSidebar
+              journals={journals}
+              journalsLoading={journalsLoading}
+              activeEntryId={activeEntry?.id}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onSelectEntry={setActiveEntry}
+              onDeleteEntry={handleDeleteEntry}
+              filteredEntries={filteredEntries}
+            />
+          </div>
 
           {/* Content Pane */}
           <div className="journal-content">
@@ -1688,93 +2380,100 @@ export const Journal: React.FC = () => {
               <>
                 {/* Header Editor bar */}
                 <div className="journal-editor-header">
-                  <div className="journal-title-row">
-                    <input
-                      type="text"
-                      className="journal-title-input"
-                      value={activeEntry.title}
-                      onChange={(e) => setActiveEntry({ ...activeEntry, title: e.target.value })}
-                      placeholder="Reflection title..."
-                    />
-                    
-                    {/* Save button only appears if there is a change in the journal */}
-                    {hasChanges() && (
-                      <button 
-                        className={`journal-save-btn ${saveSuccess ? "success" : ""}`} 
-                        onClick={handleSaveEntry}
-                        disabled={isSaving}
-                      >
-                        {isSaving ? "SAVING..." : saveSuccess ? "✓ SAVED" : "SAVE ENTRY"}
-                      </button>
-                    )}
-                  </div>
-                  <div className="journal-meta-row">
-                    <div className="journal-meta-left">
+                  <div className="journal-editor-header-inner">
+                    <div className="journal-title-row">
                       <input
-                        type="date"
-                        className="journal-date-input"
-                        value={activeEntry.date}
-                        onChange={(e) => handleDateChange(e.target.value)}
+                        type="text"
+                        className="journal-title-input"
+                        value={activeEntry.title}
+                        onChange={(e) => setActiveEntry({ ...activeEntry, title: e.target.value })}
+                        placeholder="Reflection title..."
                       />
-                      <span className={`sync-badge ${user ? "online" : ""}`}>
-                        {user ? "Cloud Synced" : "Local Storage Draft"}
-                      </span>
+                      
+                      {/* Save button only appears if there is a change in the journal */}
+                      {hasChanges() && (
+                        <button 
+                          className={`journal-save-btn ${saveSuccess ? "success" : ""}`} 
+                          onClick={handleSaveEntry}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? "SAVING..." : saveSuccess ? "✓ SAVED" : "SAVE ENTRY"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="journal-meta-row">
+                      <div className="journal-meta-left">
+                        <input
+                          type="date"
+                          className="journal-date-input"
+                          value={activeEntry.date}
+                          onChange={(e) => handleDateChange(e.target.value)}
+                        />
+                        <span className={`sync-badge ${user ? "online" : ""}`}>
+                          {user ? "Cloud Synced" : "Local Storage Draft"}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Editor Workspace */}
                 <div className="journal-editor-body">
-                  {/* Integrated Focus Blueprint section (Subcomponent) */}
-                  <FocusBlueprint
-                    sessionsSnapshot={getSessionsForDate(activeEntry.date)}
-                    idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
-                    windDownSnapshot={getWindDownForDate(activeEntry.date)}
-                    boardSnapshots={activeEntry.boardSnapshots}
-                    allBoards={getMergedBoards()}
-                    date={activeEntry.date}
-                  />
+                  {/* Tone Template Selector */}
+                  <div className="tone-template-selector">
+                    <span className="tone-label">Daily Tone:</span>
+                    <div className="tone-buttons">
+                      <button onClick={() => applyTemplate("stoic")} className={`tone-btn ${activeTone === "stoic" ? "active" : ""}`}>Stoic</button>
+                      <button onClick={() => applyTemplate("optimist")} className={`tone-btn ${activeTone === "optimist" ? "active" : ""}`}>Optimist</button>
+                    </div>
+                  </div>
 
                   {/* Notion-style sections list */}
                   <div className="journal-sections-container">
                     {sections.length === 0 ? (
-                      <div className="hint-text" style={{ padding: "20px 0", textAlign: "center" }}>
-                        Click on the blocks below to start writing your reflections.
+                      <div 
+                        className="hint-text" 
+                        style={{ padding: "20px 0", textAlign: "center", cursor: "pointer" }}
+                        onClick={() => addSection("text")}
+                      >
+                        No sections available. Click here to add a text block.
                       </div>
-                    ) : (
-                      sections.map((section, idx) => (
-                        <JournalSectionItem
-                          key={section.id}
-                          section={section}
-                          idx={idx}
-                          totalSections={sections.length}
-                          newlyCreatedSectionId={newlyCreatedSectionId}
-                          updateSectionValue={updateSectionValue}
-                          toggleTodoSection={toggleTodoSection}
-                          deleteSection={deleteSection}
-                          moveSection={moveSection}
-                        />
-                      ))
-                    )}
+                    ) : (() => {
+                      let currentNumberedIndex = 0;
+                      return sections.map((section, idx) => {
+                        let numberedIndex: number | undefined = undefined;
+                        if (section.type === "numbered") {
+                          const isPrevNumbered = idx > 0 && sections[idx - 1].type === "numbered";
+                          if (isPrevNumbered) {
+                            currentNumberedIndex++;
+                          } else {
+                            currentNumberedIndex = 1;
+                          }
+                          numberedIndex = currentNumberedIndex;
+                        }
+                        return (
+                          <JournalSectionItem
+                            key={section.id}
+                            section={section}
+                            idx={idx}
+                            totalSections={sections.length}
+                            numberedIndex={numberedIndex}
+                            newlyCreatedSectionId={newlyCreatedSectionId}
+                            updateSectionValue={updateSectionValue}
+                            toggleTodoSection={toggleTodoSection}
+                            deleteSection={deleteSection}
+                            moveSection={moveSection}
+                            onKeyDown={handleBlockKeyDown}
+                            showSlashMenu={slashMenu?.sectionId === section.id}
+                            slashMenuIndex={slashMenuIndex}
+                            slashMenuQuery={slashMenu ? slashMenu.query : ""}
+                            onSelectCommand={(type) => executeSlashCommand(section.id, type)}
+                          />
+                        );
+                      });
+                    })()}
                     
-                    {/* Block Actions Toolbar */}
-                    <div className="block-toolbar">
-                      <button className="toolbar-block-btn" onClick={() => addSection("text")}>
-                        📝 Text Block
-                      </button>
-                      <button className="toolbar-block-btn" onClick={() => addSection("heading")}>
-                        🇭 Heading Block
-                      </button>
-                      <button className="toolbar-block-btn" onClick={() => addSection("todo")}>
-                        ☑ Checkbox Block
-                      </button>
-                      <button className="toolbar-block-btn" onClick={() => addSection("bullet")}>
-                        • Bullet Block
-                      </button>
-                      <button className="toolbar-block-btn" onClick={() => addSection("callout")}>
-                        💡 Callout Box
-                      </button>
-                    </div>
+                    {/* Block Actions Toolbar removed by request */}
                   </div>
                 </div>
               </>
@@ -1783,22 +2482,24 @@ export const Journal: React.FC = () => {
 
           {/* Attachments Sidebar (Right Sidebar) (Subcomponent) */}
           {activeEntry && (
-            <JournalAttachments
-              activeEntry={activeEntry}
-              loadedMedia={loadedMedia}
-              recording={recording}
-              recordTime={recordTime}
-              formatTimerLabel={formatTimerLabel}
-              onAddPhotoClick={handleAddPhotoClick}
-              onPhotoUpload={handlePhotoUpload}
-              onDeletePhoto={handleDeletePhoto}
-              onLightboxPhoto={setLightboxPhoto}
-              fileInputRef={fileInputRef}
-              onStartRecording={startRecording}
-              onStopRecording={stopRecording}
-              onDeleteVoiceMemo={handleDeleteVoiceMemo}
-              onVoiceLabelChange={handleVoiceLabelChange}
-            />
+            <div className={`journal-attachments-container ${showAttachments ? "" : "collapsed"}`}>
+              <JournalAttachments
+                activeEntry={activeEntry}
+                loadedMedia={loadedMedia}
+                recording={recording}
+                recordTime={recordTime}
+                formatTimerLabel={formatTimerLabel}
+                onAddPhotoClick={handleAddPhotoClick}
+                onPhotoUpload={handlePhotoUpload}
+                onDeletePhoto={handleDeletePhoto}
+                onLightboxPhoto={setLightboxPhoto}
+                fileInputRef={fileInputRef}
+                onStartRecording={startRecording}
+                onStopRecording={stopRecording}
+                onDeleteVoiceMemo={handleDeleteVoiceMemo}
+                onVoiceLabelChange={handleVoiceLabelChange}
+              />
+            </div>
           )}
         </div>
       ) : (
