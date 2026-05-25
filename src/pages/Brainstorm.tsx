@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Excalidraw,
@@ -84,14 +84,14 @@ const loadBoards = (): BrainstormBoard[] => {
   }
 };
 
-const getSelectedIds = (appState: any) => {
-  const selected = appState?.selectedElementIds;
-  if (!selected || typeof selected !== "object") return [];
-  return Object.keys(selected).filter((id) => selected[id]);
-};
+// const getSelectedIds = (appState: any) => {
+//   const selected = appState?.selectedElementIds;
+//   if (!selected || typeof selected !== "object") return [];
+//   return Object.keys(selected).filter((id) => selected[id]);
+// };
 
-const areStringArraysEqual = (a: string[], b: string[]) =>
-  a.length === b.length && a.every((item, index) => item === b[index]);
+// const areStringArraysEqual = (a: string[], b: string[]) =>
+//   a.length === b.length && a.every((item, index) => item === b[index]);
 
 const getSceneSignature = (elements: readonly any[]) =>
   JSON.stringify(
@@ -107,10 +107,10 @@ const getSceneSignature = (elements: readonly any[]) =>
     }))
   );
 
-const getElementCenter = (element: any) => ({
-  x: (element.x || 0) + (element.width || 0) / 2,
-  y: (element.y || 0) + (element.height || 0) / 2,
-});
+// const getElementCenter = (element: any) => ({
+//   x: (element.x || 0) + (element.width || 0) / 2,
+//   y: (element.y || 0) + (element.height || 0) / 2,
+// });
 
 const getThemeColor = (name: string, fallback: string) => {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -159,7 +159,7 @@ export const Brainstorm: React.FC = () => {
   const themeLabel = activeTheme?.name || (activeThemeId === "default" ? "Default" : activeThemeId);
   const activeBoard = boards.find((board) => board.id === activeBoardId) || boards[0];
 
-  const activeElements = activeBoard?.elements || [];
+  // const activeElements = activeBoard?.elements || [];
 
   const updateActiveBoard = (updates: Partial<BrainstormBoard>) => {
     setBoards((current) =>
