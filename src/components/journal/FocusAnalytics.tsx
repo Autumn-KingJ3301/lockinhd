@@ -1,6 +1,6 @@
 import React from "react";
 import { useLockinStore } from "../../store/useLockinStore";
-import type { Session, Archive } from "../../types";
+import type { Session } from "../../types";
 import { formatSummaryDuration } from "../../utils/timeFormatters";
 import {
   ResponsiveContainer,

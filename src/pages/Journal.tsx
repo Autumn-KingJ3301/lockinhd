@@ -1531,6 +1531,20 @@ export const Journal: React.FC = () => {
           from { opacity: 0; }
           to { opacity: 1; }
         }
+
+        .analytics-container {
+          width: 100%;
+          max-width: 1400px;
+          height: calc(100vh - 120px);
+          min-height: 600px;
+          background-color: var(--color-card-bg);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-radius: var(--theme-border-radius, 12px);
+          box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+          overflow-y: auto;
+          padding: 24px;
+          animation: fadeUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
       `}</style>
 
       {lightboxPhoto && (
@@ -1549,8 +1563,60 @@ export const Journal: React.FC = () => {
       )}
 
       {/* Main Journal Dashboard Header */}
-      <header className="app-header" style={{ width: "100%", maxWidth: "1400px" }}>
+      <header 
+        className="app-header" 
+        style={{ 
+          width: "100%", 
+          maxWidth: "1400px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}
+      >
         <div className="app-title">DAILY FOCUS JOURNAL</div>
+
+        {/* Top-Level Tabs Switcher */}
+        <div style={{ display: "flex", gap: "20px" }}>
+          <button
+            onClick={() => setActiveTab("editor")}
+            style={{
+              background: "none",
+              border: "none",
+              color: activeTab === "editor" ? "var(--color-accent)" : "var(--color-muted)",
+              fontWeight: 700,
+              fontSize: "11px",
+              cursor: "pointer",
+              paddingBottom: "4px",
+              borderBottom: activeTab === "editor" ? "2px solid var(--color-accent)" : "2px solid transparent",
+              fontFamily: "var(--font-sans)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              transition: "all 0.2s ease"
+            }}
+          >
+            📝 Reflections
+          </button>
+          <button
+            onClick={() => setActiveTab("analytics")}
+            style={{
+              background: "none",
+              border: "none",
+              color: activeTab === "analytics" ? "var(--color-accent)" : "var(--color-muted)",
+              fontWeight: 700,
+              fontSize: "11px",
+              cursor: "pointer",
+              paddingBottom: "4px",
+              borderBottom: activeTab === "analytics" ? "2px solid var(--color-accent)" : "2px solid transparent",
+              fontFamily: "var(--font-sans)",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              transition: "all 0.2s ease"
+            }}
+          >
+            📊 Analytics
+          </button>
+        </div>
+
         <button
           className="delete-btn"
           onClick={() => navigate("/")}
@@ -1562,202 +1628,151 @@ export const Journal: React.FC = () => {
       </header>
 
       {/* Main Dashboard Layout */}
-      <div className="journal-container">
-        {/* Sidebar (Subcomponent) */}
-        <JournalSidebar
-          journals={journals}
-          journalsLoading={journalsLoading}
-          activeEntryId={activeEntry?.id}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          onSelectEntry={setActiveEntry}
-          onDeleteEntry={handleDeleteEntry}
-          filteredEntries={filteredEntries}
-        />
+      {activeTab === "editor" ? (
+        <div className="journal-container">
+          {/* Sidebar (Subcomponent) */}
+          <JournalSidebar
+            journals={journals}
+            journalsLoading={journalsLoading}
+            activeEntryId={activeEntry?.id}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onSelectEntry={setActiveEntry}
+            onDeleteEntry={handleDeleteEntry}
+            filteredEntries={filteredEntries}
+          />
 
-        {/* Content Pane */}
-        <div className="journal-content">
-          {!activeEntry ? (
-            <div className="journal-empty-view">
-              <span style={{ fontSize: "28px" }}>📝</span>
-              <div className="task-name-large" style={{ margin: 0 }}>Reflection Hub</div>
-              <div className="hint-text" style={{ maxWidth: "260px" }}>
-                Select an entry from the sidebar or click "+ New Reflection" to review focus logs and reflect on your flow.
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* Header Editor bar */}
-              <div className="journal-editor-header">
-                <div className="journal-title-row">
-                  <input
-                    type="text"
-                    className="journal-title-input"
-                    value={activeEntry.title}
-                    onChange={(e) => setActiveEntry({ ...activeEntry, title: e.target.value })}
-                    placeholder="Reflection title..."
-                  />
-                  
-                  {/* Save button only appears if there is a change in the journal */}
-                  {hasChanges() && (
-                    <button 
-                      className={`journal-save-btn ${saveSuccess ? "success" : ""}`} 
-                      onClick={handleSaveEntry}
-                      disabled={isSaving}
-                    >
-                      {isSaving ? "SAVING..." : saveSuccess ? "✓ SAVED" : "SAVE ENTRY"}
-                    </button>
-                  )}
+          {/* Content Pane */}
+          <div className="journal-content">
+            {!activeEntry ? (
+              <div className="journal-empty-view">
+                <span style={{ fontSize: "28px" }}>📝</span>
+                <div className="task-name-large" style={{ margin: 0 }}>Reflection Hub</div>
+                <div className="hint-text" style={{ maxWidth: "260px" }}>
+                  Select an entry from the sidebar or click "+ New Reflection" to review focus logs and reflect on your flow.
                 </div>
-                <div className="journal-meta-row">
-                  <div className="journal-meta-left">
+              </div>
+            ) : (
+              <>
+                {/* Header Editor bar */}
+                <div className="journal-editor-header">
+                  <div className="journal-title-row">
                     <input
-                      type="date"
-                      className="journal-date-input"
-                      value={activeEntry.date}
-                      onChange={(e) => handleDateChange(e.target.value)}
+                      type="text"
+                      className="journal-title-input"
+                      value={activeEntry.title}
+                      onChange={(e) => setActiveEntry({ ...activeEntry, title: e.target.value })}
+                      placeholder="Reflection title..."
                     />
-                    <span className={`sync-badge ${user ? "online" : ""}`}>
-                      {user ? "Cloud Synced" : "Local Storage Draft"}
-                    </span>
+                    
+                    {/* Save button only appears if there is a change in the journal */}
+                    {hasChanges() && (
+                      <button 
+                        className={`journal-save-btn ${saveSuccess ? "success" : ""}`} 
+                        onClick={handleSaveEntry}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? "SAVING..." : saveSuccess ? "✓ SAVED" : "SAVE ENTRY"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="journal-meta-row">
+                    <div className="journal-meta-left">
+                      <input
+                        type="date"
+                        className="journal-date-input"
+                        value={activeEntry.date}
+                        onChange={(e) => handleDateChange(e.target.value)}
+                      />
+                      <span className={`sync-badge ${user ? "online" : ""}`}>
+                        {user ? "Cloud Synced" : "Local Storage Draft"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Tabs Selector */}
-                <div 
-                  className="journal-tabs-row" 
-                  style={{ 
-                    display: "flex", 
-                    gap: "16px", 
-                    marginTop: "16px", 
-                    borderTop: "var(--theme-border-width, 0.5px) solid var(--color-border)", 
-                    paddingTop: "12px" 
-                  }}
-                >
-                  <button
-                    className={`journal-tab-btn ${activeTab === "editor" ? "active" : ""}`}
-                    onClick={() => setActiveTab("editor")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: activeTab === "editor" ? "var(--color-accent)" : "var(--color-muted)",
-                      fontWeight: 700,
-                      fontSize: "11px",
-                      cursor: "pointer",
-                      paddingBottom: "6px",
-                      borderBottom: activeTab === "editor" ? "2px solid var(--color-accent)" : "2px solid transparent",
-                      fontFamily: "var(--font-sans)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      transition: "all 0.2s ease"
-                    }}
-                  >
-                    📝 Reflection Editor
-                  </button>
-                  <button
-                    className={`journal-tab-btn ${activeTab === "analytics" ? "active" : ""}`}
-                    onClick={() => setActiveTab("analytics")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: activeTab === "analytics" ? "var(--color-accent)" : "var(--color-muted)",
-                      fontWeight: 700,
-                      fontSize: "11px",
-                      cursor: "pointer",
-                      paddingBottom: "6px",
-                      borderBottom: activeTab === "analytics" ? "2px solid var(--color-accent)" : "2px solid transparent",
-                      fontFamily: "var(--font-sans)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      transition: "all 0.2s ease"
-                    }}
-                  >
-                    📊 Focus Analytics
-                  </button>
-                </div>
-              </div>
+                {/* Editor Workspace */}
+                <div className="journal-editor-body">
+                  {/* Integrated Focus Blueprint section (Subcomponent) */}
+                  <FocusBlueprint
+                    sessionsSnapshot={getSessionsForDate(activeEntry.date)}
+                    idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
+                    date={activeEntry.date}
+                  />
 
-              {/* Editor Workspace or Analytics Dashboard */}
-              <div className="journal-editor-body">
-                {activeTab === "editor" ? (
-                  <>
-                    {/* Integrated Focus Blueprint section (Subcomponent) */}
-                    <FocusBlueprint
-                      sessionsSnapshot={getSessionsForDate(activeEntry.date)}
-                      idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
-                      date={activeEntry.date}
-                    />
-
-                    {/* Notion-style sections list */}
-                    <div className="journal-sections-container">
-                      {sections.length === 0 ? (
-                        <div className="hint-text" style={{ padding: "20px 0", textAlign: "center" }}>
-                          Click on the blocks below to start writing your reflections.
-                        </div>
-                      ) : (
-                        sections.map((section, idx) => (
-                          <JournalSectionItem
-                            key={section.id}
-                            section={section}
-                            idx={idx}
-                            totalSections={sections.length}
-                            newlyCreatedSectionId={newlyCreatedSectionId}
-                            updateSectionValue={updateSectionValue}
-                            toggleTodoSection={toggleTodoSection}
-                            deleteSection={deleteSection}
-                            moveSection={moveSection}
-                          />
-                        ))
-                      )}
-                      
-                      {/* Block Actions Toolbar */}
-                      <div className="block-toolbar">
-                        <button className="toolbar-block-btn" onClick={() => addSection("text")}>
-                          📝 Text Block
-                        </button>
-                        <button className="toolbar-block-btn" onClick={() => addSection("heading")}>
-                          🇭 Heading Block
-                        </button>
-                        <button className="toolbar-block-btn" onClick={() => addSection("todo")}>
-                          ☑ Checkbox Block
-                        </button>
-                        <button className="toolbar-block-btn" onClick={() => addSection("bullet")}>
-                          • Bullet Block
-                        </button>
-                        <button className="toolbar-block-btn" onClick={() => addSection("callout")}>
-                          💡 Callout Box
-                        </button>
+                  {/* Notion-style sections list */}
+                  <div className="journal-sections-container">
+                    {sections.length === 0 ? (
+                      <div className="hint-text" style={{ padding: "20px 0", textAlign: "center" }}>
+                        Click on the blocks below to start writing your reflections.
                       </div>
+                    ) : (
+                      sections.map((section, idx) => (
+                        <JournalSectionItem
+                          key={section.id}
+                          section={section}
+                          idx={idx}
+                          totalSections={sections.length}
+                          newlyCreatedSectionId={newlyCreatedSectionId}
+                          updateSectionValue={updateSectionValue}
+                          toggleTodoSection={toggleTodoSection}
+                          deleteSection={deleteSection}
+                          moveSection={moveSection}
+                        />
+                      ))
+                    )}
+                    
+                    {/* Block Actions Toolbar */}
+                    <div className="block-toolbar">
+                      <button className="toolbar-block-btn" onClick={() => addSection("text")}>
+                        📝 Text Block
+                      </button>
+                      <button className="toolbar-block-btn" onClick={() => addSection("heading")}>
+                        🇭 Heading Block
+                      </button>
+                      <button className="toolbar-block-btn" onClick={() => addSection("todo")}>
+                        ☑ Checkbox Block
+                      </button>
+                      <button className="toolbar-block-btn" onClick={() => addSection("bullet")}>
+                        • Bullet Block
+                      </button>
+                      <button className="toolbar-block-btn" onClick={() => addSection("callout")}>
+                        💡 Callout Box
+                      </button>
                     </div>
-                  </>
-                ) : (
-                  <FocusAnalytics selectedDate={activeEntry.date} />
-                )}
-              </div>
-            </>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Attachments Sidebar (Right Sidebar) (Subcomponent) */}
+          {activeEntry && (
+            <JournalAttachments
+              activeEntry={activeEntry}
+              loadedMedia={loadedMedia}
+              recording={recording}
+              recordTime={recordTime}
+              formatTimerLabel={formatTimerLabel}
+              onAddPhotoClick={handleAddPhotoClick}
+              onPhotoUpload={handlePhotoUpload}
+              onDeletePhoto={handleDeletePhoto}
+              onLightboxPhoto={setLightboxPhoto}
+              fileInputRef={fileInputRef}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
+              onDeleteVoiceMemo={handleDeleteVoiceMemo}
+              onVoiceLabelChange={handleVoiceLabelChange}
+            />
           )}
         </div>
-
-        {/* Attachments Sidebar (Right Sidebar) (Subcomponent) */}
-        {activeEntry && (
-          <JournalAttachments
-            activeEntry={activeEntry}
-            loadedMedia={loadedMedia}
-            recording={recording}
-            recordTime={recordTime}
-            formatTimerLabel={formatTimerLabel}
-            onAddPhotoClick={handleAddPhotoClick}
-            onPhotoUpload={handlePhotoUpload}
-            onDeletePhoto={handleDeletePhoto}
-            onLightboxPhoto={setLightboxPhoto}
-            fileInputRef={fileInputRef}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
-            onDeleteVoiceMemo={handleDeleteVoiceMemo}
-            onVoiceLabelChange={handleVoiceLabelChange}
+      ) : (
+        <div className="analytics-container">
+          <FocusAnalytics 
+            selectedDate={activeEntry?.date || new Date().toISOString().split("T")[0]} 
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Floating status display to notify about image limitation */}
       <div
