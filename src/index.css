@@ -1985,6 +1985,86 @@ html.light .panic-modal-overlay {
    ========================================================================== */
 
 /* ── Archive Timeline (inside panel) ──────────────────────────────────────── */
+/* ===== COMMAND BAR ===== */
+.command-bar-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.command-bar-container.compact {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  min-width: 400px;
+  max-width: 800px;
+  z-index: 1000;
+  background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+  backdrop-filter: blur(12px);
+}
+
+.command-bar-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  cursor: text;
+}
+
+.command-bar-timer {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-muted);
+  white-space: nowrap;
+  padding-right: 12px;
+  border-right: 1px solid var(--color-border);
+}
+
+.command-bar-timer.urgent {
+  color: var(--color-panic);
+}
+
+.command-bar-input-wrapper {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.command-bar-container.compact .command-input {
+  font-size: 16px;
+}
+
+.command-bar-hint {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--color-muted);
+  letter-spacing: -0.01em;
+}
+
+/* Ensure suggestions overlay works with compact command bar */
+.command-bar-container.compact .suggestions-overlay {
+  bottom: calc(100% + 8px);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 600px) {
+  .command-bar-container.compact {
+    min-width: 90%;
+    bottom: 16px;
+  }
+}
+
 .archive-timeline {
   display: flex;
   flex-direction: column;

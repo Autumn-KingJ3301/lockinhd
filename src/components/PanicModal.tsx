@@ -1,30 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLockinStore } from "../store/useLockinStore";
-import { SuggestionsOverlay } from "./SuggestionsOverlay";
 import { formatPanicTime } from "../utils/timeFormatters";
-import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
-import { getParsedCommand } from "../utils/commandParser";
 import { useThemeStore } from "../store/useThemeStore";
 import { themeToCssVars } from "../themes/themeUtils";
 import { ThemeEffectsOverlay } from "./ThemeEffectsOverlay";
 import { NoteItem } from "./ui/NoteItem";
 import { TodoListItem } from "./ui/TodoListItem";
+import { CommandBar } from "./CommandBar";
 
 type PanicModalProps = {
   inputRef: React.RefObject<HTMLInputElement | null>;
-  handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 };
 
-export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown }) => {
+export const PanicModal: React.FC<PanicModalProps> = ({ inputRef }) => {
   const [activeTab, setActiveTab] = useState<"todos" | "notes">("todos");
   const mode = useLockinStore((state) => state.mode);
-  const input = useLockinStore((state) => state.input);
-  const setInput = useLockinStore((state) => state.setInput);
-  const queue = useLockinStore((state) => state.queue);
   const session = useLockinStore((state) => state.session);
   const elapsed = useLockinStore((state) => state.elapsed);
-  const dismissedSuggestions = useLockinStore((state) => state.dismissedSuggestions);
-  const selectedSuggestionIndex = useLockinStore((state) => state.selectedSuggestionIndex);
   const showPanicModal = useLockinStore((state) => state.showPanicModal);
 
   // Listen to activeThemeId changes to trigger re-renders
@@ -34,9 +26,6 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
   // Actions
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
   const setShowPanicModal = useLockinStore((state) => state.setShowPanicModal);
-
-  const sessions = useLockinStore((state) => state.sessions);
-  const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
 
   // Auto-scroll notes ref
   const notesEndRef = useRef<HTMLDivElement>(null);
@@ -78,14 +67,6 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
   const hourPt = toPoint(hourDeg, 16);
   const minPt = toPoint(minuteDeg, 22);
   const secPt = toPoint(secondDeg, 28);
-
-  // Suggestion filters
-  const commandSuggestions = getCommandSuggestions(mode, sessions, queue, idleSidetracks, session, null, input);
-  const filteredSuggestions = filterSuggestions(commandSuggestions, input);
-  const showSuggestions = filteredSuggestions.length > 0 && input.startsWith("/") && !dismissedSuggestions;
-
-  const placeholderText = "drop a note, add step /t, complete /d, or extend /panic +5m...";
-  const hintText = "type note + ↵ to log  ·  /panic [time] to extend  ·  /min to close overlay";
 
   const themeStyles = activeTheme ? themeToCssVars(activeTheme) : {};
   const overlayType = activeTheme?.styles.effects.overlayType || "none";
@@ -143,45 +124,6 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
 
           <div className="panic-modal-task-name">{session.task}</div>
         </div>
-
-        {/* Tab Selector Styles for Panic Overlay */}
-        <style>{`
-          .panic-tabs {
-            display: flex;
-            justify-content: center;
-            border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
-            margin: 16px auto;
-            gap: 12px;
-            max-width: 600px;
-            padding-bottom: 6px;
-          }
-
-          .panic-tab-btn {
-            background: none;
-            border: none;
-            padding: 8px 16px;
-            font-family: var(--font-sans);
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--color-muted);
-            cursor: pointer;
-            border-radius: 6px;
-            transition: all 0.2s;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-          }
-
-          .panic-tab-btn:hover {
-            color: var(--color-text);
-            background-color: var(--color-surface);
-          }
-
-          .panic-tab-btn.active {
-            color: var(--color-accent);
-            background-color: var(--color-accent-bg);
-            border: 0.5px solid var(--color-accent-border);
-          }
-        `}</style>
 
         {/* Tab Selector Header */}
         <div className="panic-tabs">
@@ -241,61 +183,7 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
 
         {/* Command Input Area */}
         <div className="panic-modal-input-area">
-          {showSuggestions && (
-            <SuggestionsOverlay
-              suggestions={filteredSuggestions}
-              selectedIndex={selectedSuggestionIndex}
-              onSelect={(cmd) => {
-                setInput(cmd);
-                inputRef.current?.focus();
-              }}
-            />
-          )}
-          <div className="input-wrapper" onClick={() => inputRef.current?.focus()}>
-            {(() => {
-              const parsed = getParsedCommand(input);
-              if (parsed) {
-                return (
-                  <>
-                    {parsed.tokens.map((token, idx) => (
-                      <div 
-                        key={idx} 
-                        className={`command-chip chip-${token.category || (token.schema ? "default" : "tasks")}`}
-                      >
-                        {token.value}
-                      </div>
-                    ))}
-                    <input
-                      ref={inputRef}
-                      type="text"
-                      className="command-input"
-                      value={parsed.remainingInput}
-                      onChange={(e) => {
-                        const base = parsed.tokens.map(t => (t.type === "command" ? "/" : "") + t.value).join("\x1f");
-                        setInput(base + "\x1f" + e.target.value);
-                      }}
-                      onKeyDown={handleKeyDown}
-                      placeholder={parsed.nextArg ? `[${parsed.nextArg.name}]` : placeholderText}
-                      autoFocus
-                    />
-                  </>
-                );
-              }
-              return (
-                <input
-                  ref={inputRef}
-                  type="text"
-                  className="command-input"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={placeholderText}
-                  autoFocus
-                />
-              );
-            })()}
-          </div>
-          <div className="hint-text">{hintText}</div>
+          <CommandBar ref={inputRef as any} />
         </div>
 
       </div>

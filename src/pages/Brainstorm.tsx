@@ -7,6 +7,7 @@ import {
 import "@excalidraw/excalidraw/index.css";
 import { useLockinStore } from "../store/useLockinStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { CommandBar } from "../components/CommandBar";
 import "./Brainstorm.css";
 
 type BrainstormNote = {
@@ -436,6 +437,7 @@ export const Brainstorm: React.FC = () => {
           </section>
         </aside>
       </main>
+      <CommandBar compact />
     </div>
   );
 };
