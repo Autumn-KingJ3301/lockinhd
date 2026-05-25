@@ -1,7 +1,6 @@
 import React from "react";
 import { useLockinStore } from "../../store/useLockinStore";
 import type { Session } from "../../types";
-import { formatSummaryDuration } from "../../utils/timeFormatters";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -20,7 +19,6 @@ interface FocusAnalyticsProps {
   selectedDate: string; // YYYY-MM-DD
 }
 
-// Local helper to format Date to YYYY-MM-DD in local timezone
 const formatDateLocal = (timestamp: number) => {
   const d = new Date(timestamp);
   const yyyy = d.getFullYear();
@@ -33,7 +31,7 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
   const sessions = useLockinStore((s) => s.sessions);
   const archives = useLockinStore((s) => s.archives);
 
-  // Merge sessions from active history + archives for complete self-analytics
+  // Merge history across active sessions and archives
   const getMergedCompletedSessions = (): Session[] => {
     const allSessions: Session[] = [...sessions];
     archives.forEach((arc) => {
@@ -57,69 +55,165 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
 
   const completedSessions = getMergedCompletedSessions();
 
-  // ─── 1. Aggregated Metrics ───────────────────────────────────────────────────
-  const totalFocusSeconds = completedSessions.reduce((acc, s) => acc + (s.duration || 0), 0);
-  const totalHours = totalFocusSeconds / 3600;
-  
-  const avgSessionSeconds = completedSessions.length > 0 ? totalFocusSeconds / completedSessions.length : 0;
-
-  const totalTodosCount = completedSessions.reduce((acc, s) => acc + (s.todos?.length || 0), 0);
-  const completedTodosCount = completedSessions.reduce(
+  // ─── 1. Impact Stats Calculations ──────────────────────────────────────────
+  // Conquered Goals: total subtasks completed across all focus sessions
+  const totalCompletedSubtasks = completedSessions.reduce(
     (acc, s) => acc + (s.todos?.filter((t) => t.completed).length || 0),
     0
   );
-  const subtaskSuccessRate = totalTodosCount > 0 ? Math.round((completedTodosCount / totalTodosCount) * 100) : 0;
 
-  const totalSidetracksCount = completedSessions.reduce(
-    (acc, s) => acc + (s.sidetracks?.length || 0),
-    0
+  // Deep Focus Blocks: sessions that lasted 40 minutes (2400 seconds) or more
+  const DEEP_FOCUS_THRESHOLD = 2400; // 40 minutes
+  const deepFocusSessions = completedSessions.filter(
+    (s) => s.duration && s.duration >= DEEP_FOCUS_THRESHOLD
   );
-  const sidetracksPerHour = totalHours > 0 ? parseFloat((totalSidetracksCount / totalHours).toFixed(2)) : 0;
+  const deepFocusBlocksCount = deepFocusSessions.length;
 
-  // ─── 2. Heatmap Construction (Last 12 Weeks) ──────────────────────────────────
-  const getHeatmapDays = () => {
-    const today = new Date();
-    const currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday
-    const startDate = new Date(today);
-    // Backtrack to Sunday 11 weeks ago to render a perfect 12-week grid
-    startDate.setDate(today.getDate() - (11 * 7 + currentDayOfWeek));
-    startDate.setHours(0, 0, 0, 0);
+  // Active Flow Days: Count of unique calendar days on which focus occurred
+  const activeDaysSet = new Set<string>();
+  completedSessions.forEach((s) => {
+    if (s.endTime) {
+      activeDaysSet.add(formatDateLocal(s.endTime));
+    }
+  });
+  const activeFlowDaysCount = activeDaysSet.size;
 
-    const days: { dateStr: string; label: string; totalDuration: number }[] = [];
-    for (let i = 0; i < 84; i++) {
-      const d = new Date(startDate);
-      d.setDate(startDate.getDate() + i);
-      const dateStr = formatDateLocal(d.getTime());
-      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" });
-      days.push({ dateStr, label, totalDuration: 0 });
+  // ─── 2. Flow Formula Algorithm (Success Replication) ────────────────────────
+  // We define a high-performance session as one lasting >= 40m OR one that completed >= 2 subtasks
+  const peakSessions = completedSessions.filter(
+    (s) =>
+      (s.duration && s.duration >= DEEP_FOCUS_THRESHOLD) ||
+      (s.todos && s.todos.filter((t) => t.completed).length >= 2)
+  );
+
+  const getFlowFormula = () => {
+    const targetSessions = peakSessions.length > 0 ? peakSessions : completedSessions;
+    if (targetSessions.length === 0) {
+      return {
+        peakWindow: "N/A",
+        dominantTopic: "N/A",
+        recipe: "Log focus sessions and complete subtasks to generate your flow recipe.",
+      };
     }
 
-    completedSessions.forEach((s) => {
-      if (s.endTime) {
-        const sDateStr = formatDateLocal(s.endTime);
-        const match = days.find((x) => x.dateStr === sDateStr);
-        if (match) {
-          match.totalDuration += s.duration || 0;
-        }
+    // A. Calculate Peak Time Window
+    let morningCount = 0;
+    let afternoonCount = 0;
+    let eveningCount = 0;
+    let nightCount = 0;
+
+    targetSessions.forEach((s) => {
+      const hour = new Date(s.startTime).getHours();
+      if (hour >= 5 && hour < 12) morningCount++;
+      else if (hour >= 12 && hour < 17) afternoonCount++;
+      else if (hour >= 17 && hour < 22) eveningCount++;
+      else nightCount++;
+    });
+
+    let peakWindow = "Mornings (5:00 AM - 12:00 PM)";
+    let maxCount = morningCount;
+    if (afternoonCount > maxCount) {
+      peakWindow = "Afternoons (12:00 PM - 5:00 PM)";
+      maxCount = afternoonCount;
+    }
+    if (eveningCount > maxCount) {
+      peakWindow = "Evenings (5:00 PM - 10:00 PM)";
+      maxCount = eveningCount;
+    }
+    if (nightCount > maxCount) {
+      peakWindow = "Late Nights (10:00 PM - 5:00 AM)";
+      maxCount = nightCount;
+    }
+
+    // B. Calculate Dominant Topic by total duration in peak sessions
+    const topicDurations: Record<string, number> = {};
+    targetSessions.forEach((s) => {
+      const topic = s.task.trim();
+      topicDurations[topic] = (topicDurations[topic] || 0) + (s.duration || 0);
+    });
+
+    let dominantTopic = "N/A";
+    let maxDuration = 0;
+    Object.entries(topicDurations).forEach(([topic, dur]) => {
+      if (dur > maxDuration) {
+        dominantTopic = topic;
+        maxDuration = dur;
       }
     });
 
-    return days;
+    // C. Draft Recipe
+    const recipeText = `When you focus on "${dominantTopic}" during the ${peakWindow.split(" ")[0].toLowerCase()} window, you trigger your deepest flow. Replicate this success by blocking out a 45-minute session for "${dominantTopic}" in that period, pre-defining your subtasks.`;
+
+    return {
+      peakWindow,
+      dominantTopic,
+      recipe: recipeText,
+    };
   };
 
-  const heatmapDays = getHeatmapDays();
+  const flowFormula = getFlowFormula();
 
-  // Heatmap helper for cell transparency mapping focus hours
-  const getHeatmapOpacity = (seconds: number) => {
-    if (seconds === 0) return 0.06;
-    const hours = seconds / 3600;
-    if (hours < 0.5) return 0.25;
-    if (hours < 1.5) return 0.5;
-    if (hours < 3) return 0.75;
-    return 1.0;
+  // ─── 3. The Wall of Wins Timeline (Excluding Absent Days) ───────────────────
+  interface DailyWin {
+    dateStr: string;
+    formattedDate: string;
+    topics: string[];
+    achievements: string[];
+    notes: string[];
+  }
+
+  const getWallOfWins = (): DailyWin[] => {
+    const dailyMap = new Map<string, { timestamp: number; sessions: Session[] }>();
+
+    completedSessions.forEach((s) => {
+      if (s.endTime) {
+        const dateStr = formatDateLocal(s.endTime);
+        if (!dailyMap.has(dateStr)) {
+          dailyMap.set(dateStr, { timestamp: s.endTime, sessions: [] });
+        }
+        dailyMap.get(dateStr)!.sessions.push(s);
+      }
+    });
+
+    const wins: DailyWin[] = [];
+    dailyMap.forEach((data, dateStr) => {
+      const formattedDate = new Date(data.timestamp).toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      });
+
+      const topics = Array.from(new Set(data.sessions.map((s) => s.task.trim())));
+      const achievements: string[] = [];
+      const notes: string[] = [];
+
+      data.sessions.forEach((s) => {
+        if (s.todos) {
+          s.todos
+            .filter((t) => t.completed)
+            .forEach((t) => achievements.push(t.text));
+        }
+        if (s.notes) {
+          s.notes.forEach((n) => notes.push(n.text));
+        }
+      });
+
+      wins.push({
+        dateStr,
+        formattedDate,
+        topics,
+        achievements,
+        notes,
+      });
+    });
+
+    // Return in reverse chronological order (latest days with wins first)
+    return wins.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
   };
 
-  // ─── 3. Selected Date Daily Statistics ───────────────────────────────────────
+  const wallOfWins = getWallOfWins();
+
+  // ─── 4. Selected Date Stats ──────────────────────────────────────────────────
   const selectedDateSessions = completedSessions.filter(
     (s) => s.endTime && formatDateLocal(s.endTime) === selectedDate
   );
@@ -134,39 +228,43 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
     0
   );
 
-  // SVG Radial Progress Calculations
-  const dailyGoalSeconds = 4 * 3600; // 4 Hours default daily focus target
+  const dailyGoalSeconds = 4 * 3600; // 4 Hours target
   const progressPercentage = Math.min(100, Math.round((dailyFocusSeconds / dailyGoalSeconds) * 100));
-  const radius = 60;
+  const circleRadius = 60;
   const strokeWidth = 10;
-  const circumference = 2 * Math.PI * radius;
+  const circumference = 2 * Math.PI * circleRadius;
   const strokeDashoffset = circumference - (progressPercentage / 100) * circumference;
 
-  // ─── 4. Recharts: Energy vs Focus Duration & Sidetracks ──────────────────────
-  const getEnergyData = () => {
-    return [1, 2, 3, 4, 5].map((rating) => {
-      const group = completedSessions.filter((s) => s.energyRating === rating);
-      const avgDuration =
-        group.length > 0
-          ? Math.round(group.reduce((acc, s) => acc + (s.duration || 0), 0) / group.length / 60)
-          : 0;
-      const avgSidetracks =
-        group.length > 0
-          ? parseFloat(
-              (group.reduce((acc, s) => acc + (s.sidetracks?.length || 0), 0) / group.length).toFixed(1)
-            )
-          : 0;
+  // ─── 5. Recharts: Focus Momentum (Active Days Only) ──────────────────────────
+  const getMomentumData = () => {
+    // Map dates chronologically (oldest to newest)
+    const dates = Array.from(activeDaysSet).sort((a, b) => a.localeCompare(b));
+    return dates.map((dateStr) => {
+      const daySessions = completedSessions.filter(
+        (s) => s.endTime && formatDateLocal(s.endTime) === dateStr
+      );
+      const minutes = Math.round(
+        daySessions.reduce((acc, s) => acc + (s.duration || 0), 0) / 60
+      );
+      const subtasks = daySessions.reduce(
+        (acc, s) => acc + (s.todos?.filter((t) => t.completed).length || 0),
+        0
+      );
+
+      const d = new Date(dateStr + "T00:00:00");
+      const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
       return {
-        energy: `Rating ${rating}`,
-        duration: avgDuration,
-        sidetracks: avgSidetracks,
+        dateLabel: label,
+        "Focus Minutes": minutes,
+        "Completed Tasks": subtasks,
       };
     });
   };
 
-  const energyData = getEnergyData();
+  const momentumData = getMomentumData();
 
-  // ─── 5. Recharts: Estimation Accuracy Donut ─────────────────────────────────
+  // ─── 6. Recharts: Estimation Accuracy Donut ─────────────────────────────────
   const getEstimationAccuracyData = () => {
     const estimatedSessions = completedSessions.filter(
       (s) => s.estimatedDuration && s.estimatedDuration > 0
@@ -224,12 +322,6 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
           flex-direction: column;
           gap: 12px;
           box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .analytics-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(0,0,0,0.05);
         }
 
         .analytics-card-title {
@@ -241,7 +333,7 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
           text-transform: uppercase;
         }
 
-        /* Stats Row */
+        /* Summary counters strip */
         .stats-summary-strip {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
@@ -273,63 +365,121 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
           letter-spacing: 0.02em;
         }
 
-        /* Heatmap styling */
-        .heatmap-widget-container {
+        /* Flow Formula Replication Box */
+        .flow-formula-card {
+          background: linear-gradient(135deg, var(--color-accent-bg), rgba(255,255,255,0.02));
+          border-color: var(--color-accent-border);
+        }
+
+        .flow-formula-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 700;
+          color: var(--color-accent);
+          font-size: 13px;
+        }
+
+        .flow-formula-body {
+          font-size: 13.5px;
+          line-height: 1.6;
+          opacity: 0.9;
+        }
+
+        .flow-formula-pill-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 8px;
+        }
+
+        .flow-formula-pill {
+          background-color: var(--color-card-bg);
+          border: 0.5px solid var(--color-border);
+          border-radius: 4px;
+          padding: 3px 8px;
+          font-size: 10.5px;
+          font-family: var(--font-mono);
+          font-weight: 600;
+        }
+
+        /* Wall of Wins Feed */
+        .wall-of-wins-feed {
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 16px;
+          max-height: 400px;
+          overflow-y: auto;
+          padding-right: 6px;
         }
 
-        .heatmap-grid {
-          display: grid;
-          grid-auto-flow: column;
-          grid-template-rows: repeat(7, 1fr);
-          grid-template-columns: repeat(12, 1fr);
-          gap: 5px;
-          margin-top: 8px;
-          align-self: center;
-        }
-
-        .heatmap-cell {
-          width: 14px;
-          height: 14px;
-          border-radius: 2px;
-          background-color: var(--color-accent);
-          transition: transform 0.15s, filter 0.15s;
-          cursor: pointer;
+        .win-day-node {
+          border-left: 2px solid var(--color-accent);
+          padding-left: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
           position: relative;
         }
 
-        .heatmap-cell:hover {
-          transform: scale(1.2);
-          z-index: 10;
-          filter: brightness(1.2);
-        }
-
-        .heatmap-labels-row {
-          display: flex;
-          justify-content: space-between;
-          font-size: 9px;
-          font-family: var(--font-mono);
-          color: var(--color-muted);
-          padding: 0 4px;
-        }
-
-        .heatmap-legend {
-          display: flex;
-          justify-content: flex-end;
-          align-items: center;
-          gap: 6px;
-          font-size: 9px;
-          color: var(--color-muted);
-          margin-top: 4px;
-        }
-
-        .legend-block {
+        .win-day-node::before {
+          content: "";
+          position: absolute;
+          left: -6px;
+          top: 3px;
           width: 10px;
           height: 10px;
-          border-radius: 1.5px;
-          background-color: var(--color-accent);
+          border-radius: 50%;
+          background-color: var(--color-card-bg);
+          border: 2px solid var(--color-accent);
+        }
+
+        .win-day-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--color-text);
+        }
+
+        .win-day-topics {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .win-topic-badge {
+          background-color: var(--color-surface);
+          border: 0.5px solid var(--color-border);
+          color: var(--color-muted);
+          font-size: 9.5px;
+          padding: 1.5px 6px;
+          border-radius: 4px;
+          font-weight: 600;
+        }
+
+        .win-achievements-list {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-top: 2px;
+        }
+
+        .win-achievement-item {
+          font-size: 12px;
+          color: var(--color-text);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .win-check {
+          color: var(--color-success);
+          font-weight: bold;
+        }
+
+        .win-day-empty-hint {
+          font-size: 11px;
+          color: var(--color-muted);
+          font-style: italic;
         }
 
         /* Circular progress ring */
@@ -438,91 +588,103 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
         }
       `}</style>
 
-      {/* ─── ROW 1: Counters and Overview ──────────────────────────────────────── */}
+      {/* ─── ROW 1: Summary Strip (Wins and Days present) ──────────────────────── */}
       <div className="stats-summary-strip">
         <div className="stat-strip-box">
-          <span className="stat-strip-val">
-            {totalHours >= 1 ? `${totalHours.toFixed(1)}h` : formatSummaryDuration(totalFocusSeconds)}
-          </span>
-          <span className="stat-strip-lbl">Total Focus</span>
+          <span className="stat-strip-val">{totalCompletedSubtasks}</span>
+          <span className="stat-strip-lbl">Conquered Goals</span>
+        </div>
+        <div className="stat-strip-box">
+          <span className="stat-strip-val">{deepFocusBlocksCount}</span>
+          <span className="stat-strip-lbl">Deep Focus Blocks</span>
+        </div>
+        <div className="stat-strip-box">
+          <span className="stat-strip-val">{activeFlowDaysCount}</span>
+          <span className="stat-strip-lbl">Active Flow Days</span>
         </div>
         <div className="stat-strip-box">
           <span className="stat-strip-val">
-            {formatSummaryDuration(avgSessionSeconds)}
+            {completedSessions.length > 0
+              ? `${Math.round((deepFocusBlocksCount / completedSessions.length) * 100)}%`
+              : "0%"}
           </span>
-          <span className="stat-strip-lbl">Avg Duration</span>
-        </div>
-        <div className="stat-strip-box">
-          <span className="stat-strip-val">{subtaskSuccessRate}%</span>
-          <span className="stat-strip-lbl">Todos Done</span>
-        </div>
-        <div className="stat-strip-box">
-          <span className="stat-strip-val">{sidetracksPerHour}</span>
-          <span className="stat-strip-lbl">Sidetracks/h</span>
+          <span className="stat-strip-lbl">Deep Work Ratio</span>
         </div>
       </div>
 
-      {/* ─── ROW 2: Activity Heatmap & Selected Date Ring ───────────────────────── */}
-      <div className="analytics-grid-row">
-        {/* Playful Theme-Styled Activity Heatmap */}
-        <div className="analytics-card">
-          <div className="analytics-card-title">Focus Activity Heatmap</div>
-          <div className="heatmap-widget-container">
-            <div className="heatmap-labels-row">
-              <span>11 weeks ago</span>
-              <span>Today</span>
-            </div>
-            
-            <div className="heatmap-grid">
-              {heatmapDays.map((day, idx) => (
-                <div
-                  key={idx}
-                  className="heatmap-cell"
-                  style={{
-                    opacity: getHeatmapOpacity(day.totalDuration),
-                    backgroundColor: day.totalDuration > 0 ? "var(--color-accent)" : "var(--color-muted)",
-                  }}
-                  title={`${day.label}: ${
-                    day.totalDuration > 0
-                      ? formatSummaryDuration(day.totalDuration) + " spent"
-                      : "No focus logged"
-                  }`}
-                />
-              ))}
-            </div>
+      {/* ─── ROW 2: Focus Flow replication Formula ─────────────────────────────── */}
+      <div className="analytics-card flow-formula-card">
+        <div className="flow-formula-header">
+          <span>✦ FLOW STATE FORMULA</span>
+        </div>
+        <div className="flow-formula-body">{flowFormula.recipe}</div>
+        <div className="flow-formula-pill-row">
+          <div className="flow-formula-pill">🎯 Top Subject: {flowFormula.dominantTopic}</div>
+          <div className="flow-formula-pill">⏰ Best Hour: {flowFormula.peakWindow}</div>
+          <div className="flow-formula-pill">⚡ Minimum Flow Depth: 40 mins</div>
+        </div>
+      </div>
 
-            <div className="heatmap-legend">
-              <span>Less</span>
-              <div className="legend-block" style={{ opacity: 0.06, backgroundColor: "var(--color-muted)" }} />
-              <div className="legend-block" style={{ opacity: 0.25 }} />
-              <div className="legend-block" style={{ opacity: 0.5 }} />
-              <div className="legend-block" style={{ opacity: 0.75 }} />
-              <div className="legend-block" style={{ opacity: 1 }} />
-              <span>More</span>
-            </div>
+      {/* ─── ROW 3: Wall of Wins & Daily metrics circle ────────────────────────── */}
+      <div className="analytics-grid-row">
+        {/* Wall of Wins: timeline showing ONLY days present and did great */}
+        <div className="analytics-card">
+          <div className="analytics-card-title">Wall of Wins (Timeline)</div>
+          <div className="wall-of-wins-feed">
+            {wallOfWins.length === 0 ? (
+              <div className="hint-text" style={{ padding: "40px 0", textAlign: "center" }}>
+                No achievements recorded yet. Finish focus sessions and mark tasks complete to populate your wall of wins!
+              </div>
+            ) : (
+              wallOfWins.map((win, idx) => (
+                <div key={idx} className="win-day-node">
+                  <span className="win-day-title">{win.formattedDate}</span>
+                  <div className="win-day-topics">
+                    {win.topics.map((t, i) => (
+                      <span key={i} className="win-topic-badge">
+                        📁 {t}
+                      </span>
+                    ))}
+                  </div>
+
+                  {win.achievements.length > 0 ? (
+                    <div className="win-achievements-list">
+                      {win.achievements.map((ach, i) => (
+                        <div key={i} className="win-achievement-item">
+                          <span className="win-check">✓</span>
+                          <span>{ach}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="win-day-empty-hint">
+                      Conquered focus blocks on topics without specific subtask checklists.
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 
         {/* Selected Date Insight progress circle */}
         <div className="analytics-card">
           <div className="analytics-card-title">
-            Daily Metrics — {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            Daily Output —{" "}
+            {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            })}
           </div>
           <div className="ring-content-row">
             <div className="ring-graphics-wrapper">
               <svg className="ring-svg">
-                <circle
-                  className="ring-bg"
-                  cx="70"
-                  cy="70"
-                  r={radius}
-                  strokeWidth={strokeWidth}
-                />
+                <circle className="ring-bg" cx="70" cy="70" r={circleRadius} strokeWidth={strokeWidth} />
                 <circle
                   className="ring-progress"
                   cx="70"
                   cy="70"
-                  r={radius}
+                  r={circleRadius}
                   strokeWidth={strokeWidth}
                   strokeDasharray={circumference}
                   strokeDashoffset={strokeDashoffset}
@@ -558,21 +720,21 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
         </div>
       </div>
 
-      {/* ─── ROW 3: Standard Charts (Recharts) ────────────────────────────────── */}
+      {/* ─── ROW 4: Recharts Visualizations (Active Days Only) ─────────────────── */}
       <div className="analytics-grid-row">
-        {/* Energy Level Correlation (Composed Chart) */}
+        {/* Momentum: plot focus minutes & subtask outputs over active days only */}
         <div className="analytics-card">
-          <div className="analytics-card-title">Energy Level Correlation</div>
+          <div className="analytics-card-title">Focus Momentum & Output</div>
           <div className="chart-wrapper">
-            {completedSessions.length === 0 ? (
+            {momentumData.length === 0 ? (
               <div className="hint-text" style={{ padding: "60px 0", textAlign: "center" }}>
-                No focus logs to determine energy correlation.
+                No focus logs to determine momentum.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={energyData} margin={{ top: 10, right: -5, left: -25, bottom: 0 }}>
+                <ComposedChart data={momentumData} margin={{ top: 10, right: -5, left: -25, bottom: 0 }}>
                   <XAxis
-                    dataKey="energy"
+                    dataKey="dateLabel"
                     tick={{ fill: "var(--color-muted)", fontSize: 9, fontFamily: "var(--font-mono)" }}
                     axisLine={false}
                     tickLine={false}
@@ -596,12 +758,12 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
                       if (active && payload && payload.length) {
                         return (
                           <div className="chart-tooltip">
-                            <div className="chart-tooltip-title">{payload[0].payload.energy}</div>
+                            <div className="chart-tooltip-title">{payload[0].payload.dateLabel}</div>
                             <div className="chart-tooltip-value">
-                              Duration: {payload[0].value} mins
+                              Focus: {payload[0].value} minutes
                             </div>
-                            <div className="chart-tooltip-value" style={{ color: "var(--color-muted)" }}>
-                              Sidetracks: {payload[1].value} avg
+                            <div className="chart-tooltip-value" style={{ color: "var(--color-success)" }}>
+                              Conquered Goals: {payload[1].value}
                             </div>
                           </div>
                         );
@@ -614,8 +776,8 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
                   />
                   <Bar
                     yAxisId="left"
-                    dataKey="duration"
-                    name="Avg Focus Duration (Min)"
+                    dataKey="Focus Minutes"
+                    name="Focus Minutes"
                     fill="var(--color-accent)"
                     radius={[4, 4, 0, 0]}
                     maxBarSize={30}
@@ -623,11 +785,11 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
                   <Line
                     yAxisId="right"
                     type="monotone"
-                    dataKey="sidetracks"
-                    name="Avg Sidetracks"
-                    stroke="var(--color-panic)"
+                    dataKey="Completed Tasks"
+                    name="Conquered Goals"
+                    stroke="var(--color-success)"
                     strokeWidth={2}
-                    dot={{ fill: "var(--color-panic)", r: 4 }}
+                    dot={{ fill: "var(--color-success)", r: 4 }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -637,7 +799,7 @@ export const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ selectedDate }) 
 
         {/* Estimation Accuracy (Donut Chart) */}
         <div className="analytics-card">
-          <div className="analytics-card-title">Estimation Accuracy Target</div>
+          <div className="analytics-card-title">Estimation Target Accuracy</div>
           <div className="chart-wrapper">
             {completedSessions.filter((s) => s.estimatedDuration && s.estimatedDuration > 0).length === 0 ? (
               <div className="hint-text" style={{ padding: "60px 0", textAlign: "center" }}>
