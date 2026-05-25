@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLockinStore } from "../../store/useLockinStore";
 import { formatPanicTime } from "../../utils/timeFormatters";
 import { NoteItem } from "../ui/NoteItem";
 import { TodoListItem } from "../ui/TodoListItem";
 
 export const ActiveSessionView: React.FC<{ notesEndRef: React.RefObject<HTMLDivElement | null> }> = ({ notesEndRef }) => {
+  const [activeTab, setActiveTab] = useState<"todos" | "notes">("todos");
   const session = useLockinStore((state) => state.session);
   const elapsed = useLockinStore((state) => state.elapsed);
   const soundEnabled = useLockinStore((state) => state.soundEnabled);
@@ -59,42 +60,95 @@ export const ActiveSessionView: React.FC<{ notesEndRef: React.RefObject<HTMLDivE
         </div>
       )}
 
-      {session.todos && session.todos.length > 0 ? (
-        <div className="todos-section">
-          <div className="task-label">TODOS</div>
-          <div className="todo-list">
-            {session.todos.map((todo, idx) => (
-              <TodoListItem 
-                key={todo.id} 
-                todo={todo} 
-                index={idx} 
-                elapsed={elapsed} 
-                onClick={() => toggleTodo(idx)} 
-              />
-            ))}
+      {/* Tab Selector Styles */}
+      <style>{`
+        .session-tabs {
+          display: flex;
+          border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
+          margin: 16px 0;
+          gap: 4px;
+        }
+
+        .session-tab-btn {
+          background: none;
+          border: none;
+          padding: 6px 12px;
+          font-family: var(--font-sans);
+          font-size: 11px;
+          font-weight: 700;
+          color: var(--color-muted);
+          cursor: pointer;
+          border-radius: 6px 6px 0 0;
+          transition: all 0.2s;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+          border-bottom: 2px solid transparent;
+        }
+
+        .session-tab-btn:hover {
+          color: var(--color-text);
+        }
+
+        .session-tab-btn.active {
+          color: var(--color-accent);
+          border-bottom-color: var(--color-accent);
+        }
+      `}</style>
+
+      {/* Tab Selector Header */}
+      <div className="session-tabs">
+        <button 
+          className={`session-tab-btn ${activeTab === 'todos' ? 'active' : ''}`}
+          onClick={() => setActiveTab('todos')}
+        >
+          ☑ Subtasks ({session.todos?.length || 0})
+        </button>
+        <button 
+          className={`session-tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
+          onClick={() => setActiveTab('notes')}
+        >
+          🎙️ Log Feed ({session.notes?.length || 0})
+        </button>
+      </div>
+
+      {activeTab === 'todos' ? (
+        session.todos && session.todos.length > 0 ? (
+          <div className="todos-section" style={{ flexGrow: 1, overflowY: "auto" }}>
+            <div className="todo-list">
+              {session.todos.map((todo, idx) => (
+                <TodoListItem 
+                  key={todo.id} 
+                  todo={todo} 
+                  index={idx} 
+                  elapsed={elapsed} 
+                  onClick={() => toggleTodo(idx)} 
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="procrastination-nudge" style={{ flexGrow: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            💡 Break it down: <code>/todo [first small step]</code>
+          </div>
+        )
       ) : (
-        <div className="procrastination-nudge">
-          💡 Break it down: <code>/todo [first small step]</code>
+        <div className="notes-feed-container" style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
+          <div style={{ flexGrow: 1, overflowY: "auto" }}>
+            {session.notes.length > 0 ? (
+              session.notes.map((note, idx) => (
+                <NoteItem key={idx} note={note} />
+              ))
+            ) : (
+              <div className="empty-state" style={{ margin: "auto" }}>
+                No notes logged yet.
+                <br />
+                Type above to capture thoughts, reminders, or updates.
+              </div>
+            )}
+            <div ref={notesEndRef} />
+          </div>
         </div>
       )}
-
-      <hr className="content-divider" />
-      <div className="notes-feed-container">
-        {session.notes.length > 0 ? (
-          session.notes.map((note, idx) => (
-            <NoteItem key={idx} note={note} />
-          ))
-        ) : (
-          <div className="empty-state" style={{ margin: "auto" }}>
-            No notes logged yet.
-            <br />
-            Type above to capture thoughts, reminders, or updates.
-          </div>
-        )}
-        <div ref={notesEndRef} />
-      </div>
     </div>
   );
 };

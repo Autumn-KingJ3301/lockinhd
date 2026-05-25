@@ -10,6 +10,7 @@ import { FocusBlueprint } from "../components/journal/FocusBlueprint";
 import { JournalSectionItem } from "../components/journal/JournalSectionItem";
 import { JournalSidebar } from "../components/journal/JournalSidebar";
 import { JournalAttachments } from "../components/journal/JournalAttachments";
+import { FocusAnalytics } from "../components/journal/FocusAnalytics";
 
 export interface JournalSection {
   id: string;
@@ -62,6 +63,7 @@ export const Journal: React.FC = () => {
   // Notion-style sections state
   const [sections, setSections] = useState<JournalSection[]>([]);
   const [newlyCreatedSectionId, setNewlyCreatedSectionId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"editor" | "analytics">("editor");
 
   // Audio recording states
   const [recording, setRecording] = useState(false);
@@ -1620,58 +1622,117 @@ export const Journal: React.FC = () => {
                     </span>
                   </div>
                 </div>
+
+                {/* Tabs Selector */}
+                <div 
+                  className="journal-tabs-row" 
+                  style={{ 
+                    display: "flex", 
+                    gap: "16px", 
+                    marginTop: "16px", 
+                    borderTop: "var(--theme-border-width, 0.5px) solid var(--color-border)", 
+                    paddingTop: "12px" 
+                  }}
+                >
+                  <button
+                    className={`journal-tab-btn ${activeTab === "editor" ? "active" : ""}`}
+                    onClick={() => setActiveTab("editor")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: activeTab === "editor" ? "var(--color-accent)" : "var(--color-muted)",
+                      fontWeight: 700,
+                      fontSize: "11px",
+                      cursor: "pointer",
+                      paddingBottom: "6px",
+                      borderBottom: activeTab === "editor" ? "2px solid var(--color-accent)" : "2px solid transparent",
+                      fontFamily: "var(--font-sans)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    📝 Reflection Editor
+                  </button>
+                  <button
+                    className={`journal-tab-btn ${activeTab === "analytics" ? "active" : ""}`}
+                    onClick={() => setActiveTab("analytics")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: activeTab === "analytics" ? "var(--color-accent)" : "var(--color-muted)",
+                      fontWeight: 700,
+                      fontSize: "11px",
+                      cursor: "pointer",
+                      paddingBottom: "6px",
+                      borderBottom: activeTab === "analytics" ? "2px solid var(--color-accent)" : "2px solid transparent",
+                      fontFamily: "var(--font-sans)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    📊 Focus Analytics
+                  </button>
+                </div>
               </div>
 
-              {/* Editor Workspace */}
+              {/* Editor Workspace or Analytics Dashboard */}
               <div className="journal-editor-body">
-                {/* Integrated Focus Blueprint section (Subcomponent) */}
-                <FocusBlueprint
-                  sessionsSnapshot={getSessionsForDate(activeEntry.date)}
-                  idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
-                  date={activeEntry.date}
-                />
+                {activeTab === "editor" ? (
+                  <>
+                    {/* Integrated Focus Blueprint section (Subcomponent) */}
+                    <FocusBlueprint
+                      sessionsSnapshot={getSessionsForDate(activeEntry.date)}
+                      idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
+                      date={activeEntry.date}
+                    />
 
-                {/* Notion-style sections list */}
-                <div className="journal-sections-container">
-                  {sections.length === 0 ? (
-                    <div className="hint-text" style={{ padding: "20px 0", textAlign: "center" }}>
-                      Click on the blocks below to start writing your reflections.
+                    {/* Notion-style sections list */}
+                    <div className="journal-sections-container">
+                      {sections.length === 0 ? (
+                        <div className="hint-text" style={{ padding: "20px 0", textAlign: "center" }}>
+                          Click on the blocks below to start writing your reflections.
+                        </div>
+                      ) : (
+                        sections.map((section, idx) => (
+                          <JournalSectionItem
+                            key={section.id}
+                            section={section}
+                            idx={idx}
+                            totalSections={sections.length}
+                            newlyCreatedSectionId={newlyCreatedSectionId}
+                            updateSectionValue={updateSectionValue}
+                            toggleTodoSection={toggleTodoSection}
+                            deleteSection={deleteSection}
+                            moveSection={moveSection}
+                          />
+                        ))
+                      )}
+                      
+                      {/* Block Actions Toolbar */}
+                      <div className="block-toolbar">
+                        <button className="toolbar-block-btn" onClick={() => addSection("text")}>
+                          📝 Text Block
+                        </button>
+                        <button className="toolbar-block-btn" onClick={() => addSection("heading")}>
+                          🇭 Heading Block
+                        </button>
+                        <button className="toolbar-block-btn" onClick={() => addSection("todo")}>
+                          ☑ Checkbox Block
+                        </button>
+                        <button className="toolbar-block-btn" onClick={() => addSection("bullet")}>
+                          • Bullet Block
+                        </button>
+                        <button className="toolbar-block-btn" onClick={() => addSection("callout")}>
+                          💡 Callout Box
+                        </button>
+                      </div>
                     </div>
-                  ) : (
-                    sections.map((section, idx) => (
-                      <JournalSectionItem
-                        key={section.id}
-                        section={section}
-                        idx={idx}
-                        totalSections={sections.length}
-                        newlyCreatedSectionId={newlyCreatedSectionId}
-                        updateSectionValue={updateSectionValue}
-                        toggleTodoSection={toggleTodoSection}
-                        deleteSection={deleteSection}
-                        moveSection={moveSection}
-                      />
-                    ))
-                  )}
-                  
-                  {/* Block Actions Toolbar */}
-                  <div className="block-toolbar">
-                    <button className="toolbar-block-btn" onClick={() => addSection("text")}>
-                      📝 Text Block
-                    </button>
-                    <button className="toolbar-block-btn" onClick={() => addSection("heading")}>
-                      🇭 Heading Block
-                    </button>
-                    <button className="toolbar-block-btn" onClick={() => addSection("todo")}>
-                      ☑ Checkbox Block
-                    </button>
-                    <button className="toolbar-block-btn" onClick={() => addSection("bullet")}>
-                      • Bullet Block
-                    </button>
-                    <button className="toolbar-block-btn" onClick={() => addSection("callout")}>
-                      💡 Callout Box
-                    </button>
-                  </div>
-                </div>
+                  </>
+                ) : (
+                  <FocusAnalytics selectedDate={activeEntry.date} />
+                )}
               </div>
             </>
           )}

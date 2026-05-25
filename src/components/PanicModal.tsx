@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 import { SuggestionsOverlay } from "./SuggestionsOverlay";
 import { formatPanicTime } from "../utils/timeFormatters";
@@ -16,6 +16,7 @@ type PanicModalProps = {
 };
 
 export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown }) => {
+  const [activeTab, setActiveTab] = useState<"todos" | "notes">("todos");
   const mode = useLockinStore((state) => state.mode);
   const input = useLockinStore((state) => state.input);
   const setInput = useLockinStore((state) => state.setInput);
@@ -143,46 +144,99 @@ export const PanicModal: React.FC<PanicModalProps> = ({ inputRef, handleKeyDown 
           <div className="panic-modal-task-name">{session.task}</div>
         </div>
 
-        {/* Panel Content (Split View: Left Checklist, Right Notes) */}
-        <div className="panic-modal-panels">
-          
-          {/* Checklist Panel */}
-          <div className="panic-modal-panel">
-            <div className="section-label">Subtasks</div>
-            {session.todos && session.todos.length > 0 ? (
-              <div className="panic-modal-todos">
-                {session.todos.map((todo, idx) => (
-                  <TodoListItem 
-                    key={todo.id} 
-                    todo={todo} 
-                    index={idx} 
-                    elapsed={elapsed} 
-                    onClick={() => toggleTodo(idx)} 
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="panic-modal-empty">
-                💡 Break it down! Type <code>/todo [subtask]</code> to create a checklist.
-              </div>
-            )}
-          </div>
+        {/* Tab Selector Styles for Panic Overlay */}
+        <style>{`
+          .panic-tabs {
+            display: flex;
+            justify-content: center;
+            border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
+            margin: 16px auto;
+            gap: 12px;
+            max-width: 600px;
+            padding-bottom: 6px;
+          }
 
-          {/* Notes Panel */}
-          <div className="panic-modal-panel">
-            <div className="section-label">Log Feed</div>
-            <div className="panic-modal-notes">
-              {session.notes.length > 0 ? (
-                session.notes.map((note, idx) => (
-                  <NoteItem key={idx} note={note} />
-                ))
+          .panic-tab-btn {
+            background: none;
+            border: none;
+            padding: 8px 16px;
+            font-family: var(--font-sans);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--color-muted);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+          }
+
+          .panic-tab-btn:hover {
+            color: var(--color-text);
+            background-color: var(--color-surface);
+          }
+
+          .panic-tab-btn.active {
+            color: var(--color-accent);
+            background-color: var(--color-accent-bg);
+            border: 0.5px solid var(--color-accent-border);
+          }
+        `}</style>
+
+        {/* Tab Selector Header */}
+        <div className="panic-tabs">
+          <button 
+            className={`panic-tab-btn ${activeTab === 'todos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('todos')}
+          >
+            ☑ Subtasks ({session.todos?.length || 0})
+          </button>
+          <button 
+            className={`panic-tab-btn ${activeTab === 'notes' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notes')}
+          >
+            🎙️ Log Feed ({session.notes?.length || 0})
+          </button>
+        </div>
+
+        {/* Panel Content (Single Tabbed View) */}
+        <div className="panic-modal-panels" style={{ display: "block" }}>
+          {activeTab === 'todos' ? (
+            <div className="panic-modal-panel" style={{ width: "100%", maxWidth: "600px", margin: "0 auto" }}>
+              <div className="section-label">Subtasks</div>
+              {session.todos && session.todos.length > 0 ? (
+                <div className="panic-modal-todos">
+                  {session.todos.map((todo, idx) => (
+                    <TodoListItem 
+                      key={todo.id} 
+                      todo={todo} 
+                      index={idx} 
+                      elapsed={elapsed} 
+                      onClick={() => toggleTodo(idx)} 
+                    />
+                  ))}
+                </div>
               ) : (
-                <div className="panic-modal-empty">No notes logged in this session yet.</div>
+                <div className="panic-modal-empty">
+                  💡 Break it down! Type <code>/todo [subtask]</code> to create a checklist.
+                </div>
               )}
-              <div ref={notesEndRef} />
             </div>
-          </div>
-
+          ) : (
+            <div className="panic-modal-panel" style={{ width: "100%", maxWidth: "600px", margin: "0 auto" }}>
+              <div className="section-label">Log Feed</div>
+              <div className="panic-modal-notes">
+                {session.notes.length > 0 ? (
+                  session.notes.map((note, idx) => (
+                    <NoteItem key={idx} note={note} />
+                  ))
+                ) : (
+                  <div className="panic-modal-empty">No notes logged in this session yet.</div>
+                )}
+                <div ref={notesEndRef} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Command Input Area */}
