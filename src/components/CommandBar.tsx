@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../store/useLockinStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useWindDownStore } from "../store/useWindDownStore";
 import { SuggestionsOverlay } from "./SuggestionsOverlay";
 import { getParsedCommand, parseDuration, commandRegistry } from "../utils/commandParser";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
@@ -487,6 +488,21 @@ export const CommandBar = React.forwardRef<HTMLInputElement, CommandBarProps>(({
       return;
     }
 
+    if (cmdName === "wind-down") {
+      const entered = useWindDownStore.getState().enterWindDown();
+      if (entered) {
+        setToastMsg("Entering Wind Down...");
+        setInput("");
+        setTimeout(() => {
+          navigate("/wind-down");
+        }, 300);
+      } else {
+        setToastMsg("Wind down is only available in idle mode.");
+        setInput("");
+      }
+      return;
+    }
+
     if (cmdName === "zen") {
       toggleZenMode();
       setToastMsg(zenMode ? "Zen mode off — panels restored." : "Zen mode on — panels hidden.");
@@ -597,6 +613,16 @@ export const CommandBar = React.forwardRef<HTMLInputElement, CommandBarProps>(({
       return;
     }
 
+    if (mode === "wind-down") {
+      if (cmdName === "done") {
+        useWindDownStore.getState().exitWindDown();
+        setToastMsg("Wound down successfully. Restored workspace.");
+        setInput("");
+        navigate("/");
+        return;
+      }
+    }
+
     if ((mode === "active" || mode === "panic") && session) {
       if (cmdName === "todo") {
         if (args) {
@@ -665,6 +691,14 @@ export const CommandBar = React.forwardRef<HTMLInputElement, CommandBarProps>(({
           setResumeCueToLastSession(trimmedInput);
           setToastMsg("Resume cue saved! Starting fresh.");
           exitWrapMode();
+        }
+      } else if (mode === "wind-down") {
+        const lowerInput = trimmedInput.toLowerCase();
+        if (lowerInput === "done" || lowerInput === "d") {
+          useWindDownStore.getState().exitWindDown();
+          setToastMsg("Wound down successfully. Restored workspace.");
+          setInput("");
+          navigate("/");
         }
       }
       return;
@@ -859,6 +893,9 @@ export const CommandBar = React.forwardRef<HTMLInputElement, CommandBarProps>(({
       placeholderText = "type resume cue + ↵, or just ↵ to go idle";
       hintText = "leave a breadcrumb for your next session, then ↵";
     }
+  } else if (mode === "wind-down") {
+    placeholderText = "type done to exit wind down...";
+    hintText = "type done (or /done) + ↵ to exit wind down  ·  esc also exits";
   }
 
   if (input.startsWith("/schedule")) hintText = "e.g., /schedule 5pm water plants --recur · formats: 5pm, 17:30, 5:30pm";

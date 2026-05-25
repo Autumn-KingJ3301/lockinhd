@@ -7,6 +7,7 @@ import { Profile } from "./pages/Profile";
 import { ThemeStore } from "./pages/ThemeStore";
 import { Journal } from "./pages/Journal";
 import { Brainstorm } from "./pages/Brainstorm";
+import { WindDown } from "./pages/WindDown";
 import { useGlobalTheme } from "./hooks/useGlobalTheme";
 import { useCloudSync } from "./hooks/useCloudSync";
 import { useGlobalTimer } from "./hooks/useGlobalTimer";
@@ -33,6 +34,7 @@ function App() {
       <Route path="/themes" element={<ThemeStore />} />
       <Route path="/journal" element={<Journal />} />
       <Route path="/brainstorm" element={<Brainstorm />} />
+      <Route path="/wind-down" element={<WindDown />} />
     </Routes>
   );
 }

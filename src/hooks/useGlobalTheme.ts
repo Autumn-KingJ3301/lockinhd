@@ -17,7 +17,9 @@ export function useGlobalTheme() {
     ((mode === "active" || mode === "panic") && session)
       ? (session.energyRating ?? 3)
       : ((mode === "wrap" && wrapData) ? (wrapData.energyRating ?? 3) : (
-        setupStep === "energy" && /^[1-5]$/.test(input.trim()) ? parseInt(input.trim(), 10) : null
+        mode === "wind-down" ? 1 : (
+          setupStep === "energy" && /^[1-5]$/.test(input.trim()) ? parseInt(input.trim(), 10) : null
+        )
       ));
 
   useEffect(() => {

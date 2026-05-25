@@ -364,6 +364,13 @@ export const commandRegistry: CommandSchema[] = [
     args: [
       { name: "name", type: "string", optional: true, allowSpaces: true }
     ]
+  },
+  {
+    name: "wind-down",
+    category: "nav",
+    description: "Enter a quiet wind-down mode to rest after work",
+    shortcuts: ["wd", "relax"],
+    args: []
   }
 ];
 

@@ -52,8 +52,22 @@ export type QueueItem = {
   text: string;
 };
 
-export type AppMode = "idle" | "active" | "panic" | "wrap";
+export type AppMode = "idle" | "active" | "panic" | "wrap" | "wind-down";
 export type Theme = "system" | "light" | "dark";
+
+export type WindDownLog = {
+  id: number;
+  startTime: number;
+  endTime: number;
+  duration: number; // in seconds
+  activityId?: string;
+  activityName?: string;
+  moodRatingBefore?: number;
+  moodRatingAfter?: number;
+  associatedSessionId?: number;
+  associatedSessionTask?: string;
+  associatedSessionDuration?: number;
+};
 
 export type CallbackTask = {
   id: number;
@@ -128,6 +142,7 @@ export type JournalEntry = {
   content: string;
   sessionsSnapshot?: Session[];
   idleSidetracksSnapshot?: string[];
+  windDownSnapshot?: WindDownLog[];
   photos?: JournalPhoto[];
   voiceMemos?: JournalVoiceMemo[];
   boardSnapshots?: { boardId: string, boardTitle: string, pngBase64: string }[];

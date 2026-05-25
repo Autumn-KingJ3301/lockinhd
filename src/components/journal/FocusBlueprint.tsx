@@ -1,9 +1,10 @@
 import { formatSummaryDuration } from "../../utils/timeFormatters";
-import type { Session, BrainstormBoard } from "../../types";
+import type { Session, BrainstormBoard, WindDownLog } from "../../types";
 
 interface FocusBlueprintProps {
   sessionsSnapshot?: Session[];
   idleSidetracksSnapshot?: string[];
+  windDownSnapshot?: WindDownLog[];
   boardSnapshots?: { boardId: string, boardTitle: string, pngBase64: string }[];
   allBoards?: BrainstormBoard[];
   date: string;
@@ -12,6 +13,7 @@ interface FocusBlueprintProps {
 export const FocusBlueprint: React.FC<FocusBlueprintProps> = ({
   sessionsSnapshot,
   idleSidetracksSnapshot,
+  windDownSnapshot,
   boardSnapshots,
   allBoards,
   date,
@@ -208,6 +210,48 @@ export const FocusBlueprint: React.FC<FocusBlueprintProps> = ({
                         💡 {st}
                       </span>
                     ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {windDownSnapshot && windDownSnapshot.length > 0 && (
+              <div className="artifact-node" style={{ opacity: 0.9 }}>
+                <div className="artifact-line"></div>
+                <div className="artifact-dot" style={{ borderColor: "var(--color-accent)", color: "var(--color-accent)", background: "var(--color-accent-bg)" }}>🍃</div>
+                <div className="artifact-node-content">
+                  <div className="artifact-node-header">
+                    <span className="artifact-node-title" style={{ color: "var(--color-accent)" }}>
+                      Recovery & Wind Down Sessions
+                    </span>
+                  </div>
+                  <div className="artifact-tags-container" style={{ flexDirection: "column", alignItems: "flex-start", gap: "8px" }}>
+                    {windDownSnapshot.map((wd, i) => {
+                      const moodList = ["😫", "😐", "🙂", "😌", "🧘"];
+                      const beforeEmoji = wd.moodRatingBefore ? moodList[wd.moodRatingBefore - 1] : "";
+                      const afterEmoji = wd.moodRatingAfter ? moodList[wd.moodRatingAfter - 1] : "";
+                      return (
+                        <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center", width: "100%" }}>
+                          <span style={{ fontSize: "10px", opacity: 0.6, whiteSpace: "nowrap" }}>
+                            {new Date(wd.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                          <span className="artifact-sidetrack-badge" style={{ backgroundColor: "var(--color-accent-bg)", borderColor: "var(--color-accent-border)" }}>
+                            🧘 {wd.activityName || "Quiet Resting"}
+                            <span style={{ marginLeft: "6px", opacity: 0.8 }}>· {formatSummaryDuration(wd.duration)}</span>
+                            {(beforeEmoji || afterEmoji) && (
+                              <span style={{ marginLeft: "8px", filter: "none" }}>
+                                Mood: {beforeEmoji ? `${beforeEmoji} → ` : ""}{afterEmoji}
+                              </span>
+                            )}
+                            {wd.associatedSessionTask && (
+                              <span style={{ fontSize: "9.5px", opacity: 0.5, marginLeft: "4px" }}>
+                                (wound down from: {wd.associatedSessionTask})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

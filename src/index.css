@@ -3924,6 +3924,266 @@ html.light .recurrence-modal-overlay {
   transform: scale(0.95);
 }
 
+/* Wind Down Relaxation Mode Styles */
+html.wind-down-active {
+  /* Soothing deep midnight slate theme colors */
+  --color-bg: #0b1116;
+  --color-text: #bdc5cc;
+  --color-muted: #6b7782;
+  --color-border: rgba(120, 157, 171, 0.12);
+  --color-card-bg: rgba(11, 17, 22, 0.85);
+  --color-surface: rgba(120, 157, 171, 0.04);
+  --color-accent: #789dab;
+  --color-accent-bg: rgba(120, 157, 171, 0.06);
+  --color-accent-border: rgba(120, 157, 171, 0.2);
+  filter: brightness(0.7) contrast(0.9);
+  transition: filter 1.5s ease, background-color 1.5s ease;
+}
+
+/* Hide focus elements during wind down */
+html.wind-down-active .panic-active-badge,
+html.wind-down-active .floating-timer-container {
+  display: none !important;
+}
+
+.wind-down-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  animation: windDownFadeIn 1.2s ease-out forwards;
+}
+
+@keyframes windDownFadeIn {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.wind-down-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.wind-down-greeting {
+  font-size: 16px;
+  font-weight: 300;
+  color: var(--color-accent);
+  margin-bottom: 6px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.wind-down-sub {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.wind-down-activity-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.wind-down-activity-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  border: 0.5px solid rgba(120, 157, 171, 0.12);
+  background: linear-gradient(135deg, rgba(120, 157, 171, 0.04) 0%, rgba(120, 157, 171, 0.01) 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wind-down-activity-card:hover {
+  border-color: rgba(120, 157, 171, 0.4);
+  background: linear-gradient(135deg, rgba(120, 157, 171, 0.1) 0%, rgba(120, 157, 171, 0.03) 100%);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), 0 0 12px rgba(120, 157, 171, 0.12);
+}
+
+.wind-down-activity-card:active {
+  transform: translateY(0) scale(0.99);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.wind-down-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--color-accent-bg);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wind-down-card-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.wind-down-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+
+.wind-down-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.wind-down-card-desc {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.wind-down-pre-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  animation: fadeUp 0.3s ease-out forwards;
+}
+
+.wind-down-session-info {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-muted);
+  background-color: var(--color-surface);
+  border: var(--theme-border-width, 0.5px) solid var(--color-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.wind-down-pre-selector h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.wind-down-btn-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* Premium Wind Down Button Styles */
+.wind-down-btn-primary {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, rgba(120, 157, 171, 0.25) 0%, rgba(120, 157, 171, 0.08) 100%);
+  color: #e6ebed;
+  border: 0.5px solid rgba(120, 157, 171, 0.35);
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  user-select: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wind-down-btn-primary:hover {
+  background: linear-gradient(135deg, rgba(120, 157, 171, 0.35) 0%, rgba(120, 157, 171, 0.15) 100%);
+  border-color: rgba(120, 157, 171, 0.6);
+  color: #ffffff;
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 12px rgba(120, 157, 171, 0.25);
+}
+
+.wind-down-btn-primary:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.wind-down-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.wind-down-btn-secondary {
+  padding: 8px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--color-muted);
+  border: 0.5px solid rgba(120, 157, 171, 0.12);
+  border-radius: 6px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  user-select: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wind-down-btn-secondary:hover {
+  background: rgba(120, 157, 171, 0.06);
+  border-color: rgba(120, 157, 171, 0.3);
+  color: var(--color-text);
+  transform: translateY(-1px) scale(1.02);
+}
+
+.wind-down-btn-secondary:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.wind-down-mood-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 0.5px solid rgba(120, 157, 171, 0.15);
+  background: rgba(120, 157, 171, 0.03);
+  color: var(--color-text);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.wind-down-mood-btn:hover {
+  transform: scale(1.15) rotate(5deg);
+  background: rgba(120, 157, 171, 0.12);
+  border-color: rgba(120, 157, 171, 0.45);
+  box-shadow: 0 0 16px rgba(120, 157, 171, 0.3);
+}
+
+.wind-down-mood-btn:active {
+  transform: scale(0.93) rotate(-3deg);
+}
+
+
 
 
 

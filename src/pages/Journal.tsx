@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../store/useLockinStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { useWindDownStore } from "../store/useWindDownStore";
 import { mediaDb } from "../utils/mediaDb";
 import type { JournalEntry, JournalPhoto, Session } from "../types";
 
@@ -245,6 +246,19 @@ export const Journal: React.FC = () => {
     return activeEntry?.idleSidetracksSnapshot || [];
   };
 
+  // Dynamically compute wind-down logs snapshot for a date
+  const getWindDownForDate = (dateStr: string) => {
+    const selectedDateMidnight = new Date(dateStr + "T00:00:00").getTime();
+    const nextDateMidnight = selectedDateMidnight + 24 * 3600 * 1000;
+
+    const allWindDownLogs = useWindDownStore.getState().windDownLogs;
+    const completedLogs = allWindDownLogs.filter(
+      (wd) => wd.endTime >= selectedDateMidnight && wd.endTime < nextDateMidnight
+    );
+
+    return completedLogs;
+  };
+
   // Check if activeEntry has unsaved edits
   const hasChanges = () => {
     if (!activeEntry) return false;
@@ -274,6 +288,7 @@ export const Journal: React.FC = () => {
       ...activeEntry,
       sessionsSnapshot: getSessionsForDate(activeEntry.date),
       idleSidetracksSnapshot: getSidetracksForDate(activeEntry.date),
+      windDownSnapshot: getWindDownForDate(activeEntry.date),
     };
 
     // Save
@@ -1714,6 +1729,7 @@ export const Journal: React.FC = () => {
                   <FocusBlueprint
                     sessionsSnapshot={getSessionsForDate(activeEntry.date)}
                     idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
+                    windDownSnapshot={getWindDownForDate(activeEntry.date)}
                     boardSnapshots={activeEntry.boardSnapshots}
                     allBoards={getMergedBoards()}
                     date={activeEntry.date}
