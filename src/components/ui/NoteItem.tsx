@@ -1,5 +1,5 @@
 import React from "react";
-import { Note } from "../../types";
+import type { Note } from "../../types";
 import { formatTimestamp } from "../../utils/timeFormatters";
 
 interface NoteItemProps {

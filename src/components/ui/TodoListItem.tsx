@@ -1,5 +1,5 @@
 import React from "react";
-import { TodoItem } from "../../types";
+import type { TodoItem } from "../../types";
 import { formatTime } from "../../utils/timeFormatters";
 
 interface TodoListItemProps {

@@ -1,6 +1,6 @@
 import React from "react";
 import { useLockinStore } from "../../store/useLockinStore";
-import { formatTimestamp, formatSummaryDuration } from "../../utils/timeFormatters";
+import { formatSummaryDuration } from "../../utils/timeFormatters";
 import { NoteItem } from "../ui/NoteItem";
 import { TodoListItem } from "../ui/TodoListItem";
 

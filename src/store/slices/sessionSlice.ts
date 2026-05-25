@@ -1,6 +1,6 @@
-import { StateCreator } from "zustand";
-import { LockinStore } from "../useLockinStore";
-import { Session, SessionRevision, SessionTrend, Note, TodoItem, RecurrenceData } from "../../types";
+import type { StateCreator } from "zustand";
+import type { LockinStore } from "../useLockinStore";
+import type { Session, SessionRevision, SessionTrend, Note, TodoItem, RecurrenceData } from "../../types";
 import { playPopSound, playChimeSound, playMegaChimeSound } from "../../utils/audioSynth";
 import { triggerConfetti } from "../../utils/confetti";
 import { parseDuration } from "../../utils/commandParser";

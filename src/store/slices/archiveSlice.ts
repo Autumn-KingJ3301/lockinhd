@@ -1,6 +1,6 @@
-import { StateCreator } from "zustand";
-import { LockinStore } from "../useLockinStore";
-import { Archive, StashData, JournalEntry, Session, SessionTrend } from "../../types";
+import type { StateCreator } from "zustand";
+import type { LockinStore } from "../useLockinStore";
+import type { Archive, StashData, JournalEntry, Session, SessionTrend } from "../../types";
 import { useAuthStore } from "../useAuthStore";
 
 export interface ArchiveSlice {

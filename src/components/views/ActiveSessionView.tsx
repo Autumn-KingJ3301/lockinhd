@@ -1,6 +1,6 @@
 import React from "react";
 import { useLockinStore } from "../../store/useLockinStore";
-import { formatTimestamp, formatPanicTime, formatTime } from "../../utils/timeFormatters";
+import { formatPanicTime } from "../../utils/timeFormatters";
 import { NoteItem } from "../ui/NoteItem";
 import { TodoListItem } from "../ui/TodoListItem";
 

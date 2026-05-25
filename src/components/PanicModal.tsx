@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 import { SuggestionsOverlay } from "./SuggestionsOverlay";
-import { formatPanicTime, formatTimestamp, formatTime } from "../utils/timeFormatters";
+import { formatPanicTime } from "../utils/timeFormatters";
 import { getCommandSuggestions, filterSuggestions } from "../utils/commandSuggestions";
 import { getParsedCommand } from "../utils/commandParser";
 import { useThemeStore } from "../store/useThemeStore";

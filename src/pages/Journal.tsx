@@ -3,8 +3,38 @@ import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../store/useLockinStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { mediaDb } from "../utils/mediaDb";
-import { formatSummaryDuration } from "../utils/timeFormatters";
 import type { JournalEntry, JournalPhoto, Session } from "../types";
+
+// Subcomponents
+import { FocusBlueprint } from "../components/journal/FocusBlueprint";
+import { JournalSectionItem } from "../components/journal/JournalSectionItem";
+import { JournalSidebar } from "../components/journal/JournalSidebar";
+import { JournalAttachments } from "../components/journal/JournalAttachments";
+
+export interface JournalSection {
+  id: string;
+  type: "text" | "heading" | "todo" | "callout" | "bullet";
+  value: string;
+  completed?: boolean;
+}
+
+const parseJournalContent = (content: string): JournalSection[] => {
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed) && parsed.every(item => item && typeof item === 'object' && 'id' in item && 'type' in item)) {
+      return parsed;
+    }
+  } catch (e) {
+    // Not JSON
+  }
+  return [
+    {
+      id: "section_default",
+      type: "text",
+      value: content || "",
+    }
+  ];
+};
 
 export const Journal: React.FC = () => {
   const navigate = useNavigate();
@@ -19,12 +49,19 @@ export const Journal: React.FC = () => {
   const deleteJournalEntry = useLockinStore((s) => s.deleteJournalEntry);
   const setToastMsg = useLockinStore((s) => s.setToastMsg);
 
+  // Active session details for real-time stats
+  const activeSession = useLockinStore((s) => s.session);
+  const elapsed = useLockinStore((s) => s.elapsed);
+
   // Local component states
   const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSummaryExpanded, setIsSummaryExpanded] = useState(true);
   const [loadedMedia, setLoadedMedia] = useState<Record<string, string>>({});
   const [lightboxPhoto, setLightboxPhoto] = useState<JournalPhoto | null>(null);
+  
+  // Notion-style sections state
+  const [sections, setSections] = useState<JournalSection[]>([]);
+  const [newlyCreatedSectionId, setNewlyCreatedSectionId] = useState<string | null>(null);
 
   // Audio recording states
   const [recording, setRecording] = useState(false);
@@ -32,6 +69,10 @@ export const Journal: React.FC = () => {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const recordTimeRef = useRef(0);
   const recordingIntervalRef = useRef<any>(null);
+
+  // Tactile save states
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Photo uploading states
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +120,15 @@ export const Journal: React.FC = () => {
     loadMediaAssets();
   }, [activeEntry?.id]);
 
+  // Parse content into sections when loading a different entry
+  useEffect(() => {
+    if (activeEntry) {
+      setSections(parseJournalContent(activeEntry.content));
+    } else {
+      setSections([]);
+    }
+  }, [activeEntry?.id]);
+
   // Cleanup audio recording on unmount
   useEffect(() => {
     return () => {
@@ -96,66 +146,100 @@ export const Journal: React.FC = () => {
       j.date.includes(searchQuery)
   );
 
-  // Create a new entry
-  const handleNewEntry = () => {
+  // Auto-creation / Load today's reflection on mount
+  useEffect(() => {
+    if (journalsLoading) return;
+
     const todayStr = new Date().toISOString().split("T")[0];
     const existing = journals.find((j) => j.date === todayStr);
 
     if (existing) {
-      setActiveEntry(existing);
-      setToastMsg("Opened existing entry for today.");
+      if (!activeEntry) {
+        setActiveEntry(existing);
+      }
+    } else {
+      const newEntry: JournalEntry = {
+        id: "journal_" + Date.now(),
+        createdAt: Date.now(),
+        date: todayStr,
+        title: `Reflections for ${new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}`,
+        content: "",
+        sessionsSnapshot: [],
+        idleSidetracksSnapshot: [],
+        photos: [],
+        voiceMemos: [],
+      };
+
+      // Save instantly to store
+      saveJournalEntry(newEntry);
+      setActiveEntry(newEntry);
+      setToastMsg("Journal automatically created for today!");
+    }
+  }, [journalsLoading, journals, activeEntry]);
+
+  // Enforce single reflection entry per day on date picker change
+  const handleDateChange = (newDate: string) => {
+    if (!activeEntry) return;
+
+    const duplicate = journals.find((j) => j.date === newDate && j.id !== activeEntry.id);
+    if (duplicate) {
+      setToastMsg("An entry already exists for this date!");
       return;
     }
 
-    // Auto-generate focus snapshots for today
-    const todayTimestamp = new Date().setHours(0, 0, 0, 0);
-    const todaySessions = sessions.filter(
-      (s) => s.endTime && s.endTime >= todayTimestamp
-    );
-
-    const newEntry: JournalEntry = {
-      id: "journal_" + Date.now(),
-      createdAt: Date.now(),
-      date: todayStr,
-      title: `Reflections for ${new Date().toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })}`,
-      content: "",
-      sessionsSnapshot: todaySessions,
-      idleSidetracksSnapshot: [...idleSidetracks],
-      photos: [],
-      voiceMemos: [],
-    };
-
-    setActiveEntry(newEntry);
+    setActiveEntry({ ...activeEntry, date: newDate });
   };
 
-  // Sync / Snap current workspace sessions to active entry
-  const handleRefreshSnapshot = () => {
-    if (!activeEntry) return;
-
-    // We assume the user wants to fetch sessions for the entry's selected date
-    const selectedDateMidnight = new Date(activeEntry.date + "T00:00:00").getTime();
+  // Dynamically compute focus sessions snapshot for a date
+  const getSessionsForDate = (dateStr: string): Session[] => {
+    const selectedDateMidnight = new Date(dateStr + "T00:00:00").getTime();
     const nextDateMidnight = selectedDateMidnight + 24 * 3600 * 1000;
 
-    const daySessions = sessions.filter(
+    // Filter completed sessions for this date range
+    const completedSessions = sessions.filter(
       (s) => s.endTime && s.endTime >= selectedDateMidnight && s.endTime < nextDateMidnight
     );
 
-    const isToday = activeEntry.date === new Date().toISOString().split("T")[0];
-    const daySidetracks = isToday ? [...idleSidetracks] : [];
+    // If it's today and a session is active, append it
+    const todayStr = new Date().toISOString().split("T")[0];
+    const daySessions = [...completedSessions];
+    if (dateStr === todayStr && activeSession) {
+      daySessions.push({
+        ...activeSession,
+        duration: elapsed,
+      });
+    }
 
-    setActiveEntry({
-      ...activeEntry,
-      sessionsSnapshot: daySessions,
-      idleSidetracksSnapshot: daySidetracks,
-    });
-    setToastMsg("Focus stats snapshot updated!");
+    return daySessions;
   };
 
-  // Save entry (local store + firebase)
+  // Dynamically compute focus sidetracks snapshot for a date
+  const getSidetracksForDate = (dateStr: string): string[] => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (dateStr === todayStr) {
+      return [...idleSidetracks];
+    }
+    return activeEntry?.idleSidetracksSnapshot || [];
+  };
+
+  // Check if activeEntry has unsaved edits
+  const hasChanges = () => {
+    if (!activeEntry) return false;
+    const original = journals.find(j => j.id === activeEntry.id);
+    if (!original) return true; // Newly created or unsaved draft
+
+    return (
+      activeEntry.title !== original.title ||
+      activeEntry.date !== original.date ||
+      activeEntry.content !== original.content
+    );
+  };
+
+  // Save entry (local store + firebase) with tactile state transitions
   const handleSaveEntry = async () => {
     if (!activeEntry) return;
     if (!activeEntry.title.trim()) {
@@ -163,7 +247,31 @@ export const Journal: React.FC = () => {
       return;
     }
 
-    await saveJournalEntry(activeEntry);
+    setIsSaving(true);
+    setSaveSuccess(false);
+
+    // Snapshot the current daily work into the record when saving
+    const entryToSave: JournalEntry = {
+      ...activeEntry,
+      sessionsSnapshot: getSessionsForDate(activeEntry.date),
+      idleSidetracksSnapshot: getSidetracksForDate(activeEntry.date),
+    };
+
+    // Save
+    await saveJournalEntry(entryToSave);
+
+    // Simulation delay for tactile feel
+    setTimeout(() => {
+      setIsSaving(false);
+      setSaveSuccess(true);
+      
+      // Update our local state to match saved snapshot to prevent showing changes
+      setActiveEntry(entryToSave);
+
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 1500);
+    }, 600);
   };
 
   // Delete entry
@@ -172,7 +280,6 @@ export const Journal: React.FC = () => {
     if (confirm("Are you sure you want to delete this reflection entry?")) {
       const entry = journals.find(j => j.id === id);
       if (entry) {
-        // Clean up media files from IndexedDB
         if (entry.photos) {
           entry.photos.forEach((p) => mediaDb.delete(p.id));
         }
@@ -186,6 +293,56 @@ export const Journal: React.FC = () => {
         setActiveEntry(null);
       }
     }
+  };
+
+  // Sections management helper
+  const handleUpdateSections = (newSections: JournalSection[]) => {
+    setSections(newSections);
+    if (activeEntry) {
+      setActiveEntry({
+        ...activeEntry,
+        content: JSON.stringify(newSections)
+      });
+    }
+  };
+
+  const updateSectionValue = (id: string, value: string) => {
+    const newSections = sections.map(s => s.id === id ? { ...s, value } : s);
+    handleUpdateSections(newSections);
+  };
+
+  const toggleTodoSection = (id: string) => {
+    const newSections = sections.map(s => s.id === id ? { ...s, completed: !s.completed } : s);
+    handleUpdateSections(newSections);
+  };
+
+  const deleteSection = (id: string) => {
+    const newSections = sections.filter(s => s.id !== id);
+    handleUpdateSections(newSections);
+  };
+
+  const moveSection = (index: number, direction: "up" | "down") => {
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === sections.length - 1) return;
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    const newSections = [...sections];
+    const temp = newSections[index];
+    newSections[index] = newSections[targetIndex];
+    newSections[targetIndex] = temp;
+    handleUpdateSections(newSections);
+  };
+
+  const addSection = (type: JournalSection["type"]) => {
+    const newId = "sec_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+    const newSection: JournalSection = {
+      id: newId,
+      type,
+      value: "",
+      completed: type === "todo" ? false : undefined
+    };
+    const newSections = [...sections, newSection];
+    setNewlyCreatedSectionId(newId);
+    handleUpdateSections(newSections);
   };
 
   // Handle Photo Picker
@@ -240,7 +397,6 @@ export const Journal: React.FC = () => {
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
-    // Reset file input value
     e.target.value = "";
   };
 
@@ -363,20 +519,14 @@ export const Journal: React.FC = () => {
     return `${mins}:${s < 10 ? "0" : ""}${s}`;
   };
 
-  // Focus snapshot summaries calculations
-  const calculateTotalFocusTime = (sessionsList?: Session[]) => {
-    if (!sessionsList) return 0;
-    return sessionsList.reduce((acc, s) => acc + (s.duration || 0), 0);
-  };
-
   return (
     <>
       <style>{`
         .journal-container {
           width: 100%;
-          max-width: 900px;
+          max-width: 1400px;
           height: calc(100vh - 120px);
-          min-height: 580px;
+          min-height: 600px;
           background-color: var(--color-card-bg);
           border: var(--theme-border-width, 0.5px) solid var(--color-border);
           border-radius: var(--theme-border-radius, 12px);
@@ -388,7 +538,7 @@ export const Journal: React.FC = () => {
         }
 
         .journal-sidebar {
-          width: 300px;
+          width: 280px;
           border-right: var(--theme-border-width, 0.5px) solid var(--color-border);
           background-color: var(--color-bg);
           display: flex;
@@ -418,30 +568,6 @@ export const Journal: React.FC = () => {
         .journal-search-input::placeholder {
           color: var(--color-muted);
           opacity: 0.6;
-        }
-
-        .journal-new-btn {
-          width: 100%;
-          padding: 10px;
-          background-color: var(--color-success-bg);
-          color: var(--color-success);
-          border: 0.5px solid var(--color-success);
-          border-radius: 6px;
-          font-family: var(--font-sans);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.05em;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-        }
-
-        .journal-new-btn:hover {
-          background-color: var(--color-success);
-          color: var(--color-bg);
         }
 
         .journal-list {
@@ -556,7 +682,7 @@ export const Journal: React.FC = () => {
 
         .journal-title-input {
           font-family: var(--font-sans);
-          font-size: 18px;
+          font-size: 20px;
           font-weight: 700;
           color: var(--color-text);
           background: transparent;
@@ -582,12 +708,39 @@ export const Journal: React.FC = () => {
           font-size: 11px;
           font-weight: 700;
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          user-select: none;
         }
 
-        .journal-save-btn:hover {
+        .journal-save-btn:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
+
+        .journal-save-btn:hover:not(:disabled) {
           background-color: var(--color-accent);
           color: var(--color-bg);
+          transform: scale(1.03);
+        }
+
+        .journal-save-btn:active:not(:disabled) {
+          transform: scale(0.95);
+        }
+
+        .journal-save-btn.success {
+          background-color: var(--color-success-bg);
+          color: var(--color-success);
+          border-color: var(--color-success);
+          animation: popSuccess 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popSuccess {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.08); }
+          100% { transform: scale(1); }
         }
 
         .journal-meta-row {
@@ -630,53 +783,44 @@ export const Journal: React.FC = () => {
         }
 
         .journal-editor-body {
-          padding: 20px;
+          padding: 20px 24px;
           display: flex;
           flex-direction: column;
           gap: 20px;
           flex-grow: 1;
         }
 
-        .focus-snapshot-widget {
-          border: 1px solid var(--color-accent-border);
-          border-radius: 12px;
-          background: var(--color-accent-bg);
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-          backdrop-filter: blur(10px);
+        /* Focus Blueprint styles (Non-collapsible integrated section) */
+        .focus-blueprint-section {
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-radius: 10px;
+          background-color: var(--color-surface);
           overflow: hidden;
-          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        
-        .focus-snapshot-widget:hover {
-          border-color: var(--color-accent);
-          box-shadow: 0 8px 30px var(--color-accent-bg);
+          margin-bottom: 12px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.02);
         }
 
-        .snapshot-header {
-          padding: 14px 20px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          cursor: pointer;
-          background-color: var(--color-card-bg);
+        .focus-blueprint-header {
+          padding: 12px 16px;
           font-family: var(--font-sans);
-          font-size: 12px;
+          font-size: 11px;
           font-weight: 700;
-          letter-spacing: 0.05em;
-          color: var(--color-text);
-          border-bottom: 0.5px solid var(--color-border);
+          letter-spacing: 0.08em;
+          color: var(--color-accent);
+          background-color: var(--color-accent-bg);
+          border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
         }
 
         .snapshot-narrative-box {
-          padding: 20px;
-          border-bottom: 0.5px dashed var(--color-border);
-          background-color: var(--color-card-bg);
+          padding: 16px;
+          border-bottom: var(--theme-border-width, 0.5px) dashed var(--color-border);
           font-size: 13px;
           line-height: 1.6;
           color: var(--color-text);
         }
 
         .snapshot-narrative-box p {
+          margin: 0;
           opacity: 0.9;
         }
 
@@ -686,11 +830,11 @@ export const Journal: React.FC = () => {
         }
 
         .snapshot-details-list {
-          padding: 20px;
+          padding: 16px;
           display: flex;
           flex-direction: column;
-          gap: 20px;
-          max-height: 380px;
+          gap: 16px;
+          max-height: 300px;
           overflow-y: auto;
           background-color: var(--color-card-bg);
         }
@@ -698,7 +842,7 @@ export const Journal: React.FC = () => {
         .artifact-timeline {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 20px;
           position: relative;
         }
 
@@ -712,7 +856,7 @@ export const Journal: React.FC = () => {
           position: absolute;
           left: 15px;
           top: 32px;
-          bottom: -28px;
+          bottom: -24px;
           width: 1px;
           background-color: var(--color-border);
         }
@@ -742,7 +886,7 @@ export const Journal: React.FC = () => {
         .artifact-node-content {
           display: flex;
           flex-direction: column;
-          gap: 8px;
+          gap: 6px;
           padding-top: 4px;
           flex-grow: 1;
         }
@@ -764,6 +908,29 @@ export const Journal: React.FC = () => {
           font-family: var(--font-mono);
           font-size: 10.5px;
           color: var(--color-muted);
+        }
+
+        .active-pulsing {
+          color: var(--color-success);
+          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .active-pulsing::before {
+          content: "";
+          display: inline-block;
+          width: 6px;
+          height: 6px;
+          background-color: var(--color-success);
+          border-radius: 50%;
+          animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+          from { opacity: 0.3; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1.1); }
         }
 
         .artifact-notes-container {
@@ -829,45 +996,319 @@ export const Journal: React.FC = () => {
           gap: 4px;
         }
 
-        .journal-textarea {
-          width: 100%;
-          min-height: 220px;
+        /* Notion-style Document Sections */
+        .journal-sections-container {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 24px;
           flex-grow: 1;
+        }
+
+        .journal-section-item {
+          display: flex;
+          align-items: flex-start;
+          position: relative;
+          gap: 8px;
+          padding: 6px 0;
+          width: 100%;
+        }
+
+        .section-drag-controls {
+          display: flex;
+          gap: 2px;
+          opacity: 0;
+          transition: opacity 0.2s ease;
+          align-items: center;
+          margin-top: 4px;
+          user-select: none;
+        }
+
+        .journal-section-item:hover .section-drag-controls {
+          opacity: 1;
+        }
+
+        .section-control-btn {
+          background: none;
+          border: none;
+          color: var(--color-muted);
+          cursor: pointer;
+          font-size: 11px;
+          padding: 2px 4px;
+          border-radius: 3px;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .section-control-btn:disabled {
+          opacity: 0.2;
+          cursor: not-allowed;
+        }
+
+        .section-control-btn:hover:not(:disabled) {
+          background-color: var(--color-surface);
+          color: var(--color-text);
+        }
+
+        .section-control-btn.delete:hover {
+          color: var(--color-panic);
+          background-color: rgba(239, 68, 68, 0.1);
+        }
+
+        .section-content-wrapper {
+          flex-grow: 1;
+          display: flex;
+          align-items: flex-start;
+          width: 100%;
+        }
+
+        /* Block textareas and inputs */
+        .section-input-textarea {
+          width: 100%;
           background: transparent;
           border: none;
           outline: none;
           color: var(--color-text);
           font-family: var(--font-sans);
           font-size: 14.5px;
-          line-height: 1.7;
+          line-height: 1.65;
           resize: none;
-          border-left: 2px solid var(--color-border);
-          padding-left: 16px;
-          transition: border-left-color 0.2s;
+          padding: 2px 0;
+          border-left: 2px solid transparent;
+          padding-left: 6px;
         }
 
-        .journal-textarea:focus {
+        .section-input-textarea:focus {
           border-left-color: var(--color-accent-border);
         }
 
-        .journal-textarea::placeholder {
+        .section-input-textarea::placeholder {
           color: var(--color-muted);
+          opacity: 0.4;
+        }
+
+        .section-input-heading {
+          width: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--color-text);
+          font-family: var(--font-sans);
+          font-size: 18px;
+          font-weight: 700;
+          padding: 4px 0;
+          border-left: 2px solid transparent;
+          padding-left: 6px;
+        }
+
+        .section-input-heading:focus {
+          border-left-color: var(--color-accent-border);
+        }
+
+        .section-input-heading::placeholder {
+          color: var(--color-muted);
+          opacity: 0.4;
+        }
+
+        /* Todo block */
+        .section-todo-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          width: 100%;
+          padding-left: 6px;
+        }
+
+        .section-todo-checkbox {
+          margin-top: 5px;
+          cursor: pointer;
+          accent-color: var(--color-accent);
+          width: 15px;
+          height: 15px;
+        }
+
+        .section-todo-text {
+          width: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--color-text);
+          font-family: var(--font-sans);
+          font-size: 14.5px;
+          line-height: 1.6;
+          border-left: 2px solid transparent;
+        }
+
+        .section-todo-text:focus {
+          border-left-color: var(--color-accent-border);
+        }
+
+        .section-todo-text.completed {
+          text-decoration: line-through;
           opacity: 0.5;
         }
 
-        .journal-media-section {
-          border-top: var(--theme-border-width, 0.5px) solid var(--color-border);
-          padding-top: 16px;
+        .section-todo-text::placeholder {
+          color: var(--color-muted);
+          opacity: 0.4;
+        }
+
+        /* Bullet block */
+        .section-bullet-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          width: 100%;
+          padding-left: 6px;
+        }
+
+        .section-bullet-dot {
+          color: var(--color-accent);
+          font-size: 16px;
+          line-height: 1;
+          margin-top: 3px;
+          user-select: none;
+        }
+
+        .section-bullet-text {
+          width: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--color-text);
+          font-family: var(--font-sans);
+          font-size: 14.5px;
+          line-height: 1.6;
+          border-left: 2px solid transparent;
+        }
+
+        .section-bullet-text:focus {
+          border-left-color: var(--color-accent-border);
+        }
+
+        .section-bullet-text::placeholder {
+          color: var(--color-muted);
+          opacity: 0.4;
+        }
+
+        /* Callout block */
+        .section-callout-box {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          width: 100%;
+          background-color: var(--color-surface);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-left: 3px solid var(--color-accent);
+          border-radius: 8px;
+          padding: 12px;
+          margin: 4px 6px;
+        }
+
+        .section-callout-emoji {
+          font-size: 16px;
+          line-height: 1;
+          margin-top: 2px;
+          user-select: none;
+        }
+
+        .section-callout-text {
+          width: 100%;
+          background: transparent;
+          border: none;
+          outline: none;
+          color: var(--color-text);
+          font-family: var(--font-sans);
+          font-size: 14.5px;
+          line-height: 1.6;
+          resize: none;
+          padding: 0;
+        }
+
+        .section-callout-text::placeholder {
+          color: var(--color-muted);
+          opacity: 0.4;
+        }
+
+        /* Block Toolbar */
+        .block-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          padding: 12px;
+          border-top: var(--theme-border-width, 0.5px) dashed var(--color-border);
+          margin-top: 24px;
+          background-color: var(--color-surface);
+          border-radius: 8px;
+        }
+
+        .toolbar-block-btn {
+          padding: 6px 12px;
+          background-color: var(--color-card-bg);
+          border: var(--theme-border-width, 0.5px) solid var(--color-border);
+          border-radius: 6px;
+          font-family: var(--font-sans);
+          font-size: 12px;
+          color: var(--color-text);
+          cursor: pointer;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          user-select: none;
+        }
+
+        .toolbar-block-btn:hover {
+          background-color: var(--color-accent-bg);
+          border-color: var(--color-accent-border);
+          color: var(--color-accent);
+          transform: translateY(-1px);
+        }
+
+        /* Attachments Right Sidebar styles */
+        .journal-attachments-sidebar {
+          width: 320px;
+          border-left: var(--theme-border-width, 0.5px) solid var(--color-border);
+          background-color: var(--color-bg);
           display: flex;
           flex-direction: column;
-          gap: 14px;
+          flex-shrink: 0;
+          overflow-y: auto;
+        }
+
+        .attachments-header {
+          padding: 16px;
+          border-bottom: var(--theme-border-width, 0.5px) solid var(--color-border);
+          font-family: var(--font-sans);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          color: var(--color-muted);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .attachments-body {
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+        }
+
+        .attachments-group {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
         }
 
         .photo-gallery-title {
           font-size: 10px;
-          font-weight: 600;
+          font-weight: 700;
           color: var(--color-muted);
-          letter-spacing: 0.1em;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
         }
 
@@ -1010,6 +1451,7 @@ export const Journal: React.FC = () => {
           flex-direction: column;
           flex-grow: 1;
           gap: 4px;
+          overflow: hidden;
         }
 
         .voice-memo-label-input {
@@ -1021,6 +1463,7 @@ export const Journal: React.FC = () => {
           outline: none;
           color: var(--color-text);
           border-bottom: 1px solid transparent;
+          width: 100%;
         }
 
         .voice-memo-label-input:focus {
@@ -1030,7 +1473,7 @@ export const Journal: React.FC = () => {
         .voice-memo-player {
           height: 24px;
           margin-top: 4px;
-          max-width: 200px;
+          max-width: 180px;
         }
 
         .voice-memo-fallback {
@@ -1104,7 +1547,7 @@ export const Journal: React.FC = () => {
       )}
 
       {/* Main Journal Dashboard Header */}
-      <header className="app-header" style={{ width: "100%", maxWidth: "900px" }}>
+      <header className="app-header" style={{ width: "100%", maxWidth: "1400px" }}>
         <div className="app-title">DAILY FOCUS JOURNAL</div>
         <button
           className="delete-btn"
@@ -1118,55 +1561,17 @@ export const Journal: React.FC = () => {
 
       {/* Main Dashboard Layout */}
       <div className="journal-container">
-        {/* Sidebar */}
-        <div className="journal-sidebar">
-          <div className="journal-sidebar-header">
-            <button className="journal-new-btn" onClick={handleNewEntry}>
-              <span>+</span> NEW REFLECTION
-            </button>
-            <input
-              type="text"
-              className="journal-search-input"
-              placeholder="Search reflections..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="journal-list">
-            {journalsLoading ? (
-              <div className="empty-state" style={{ padding: "30px 0" }}>Loading...</div>
-            ) : filteredEntries.length === 0 ? (
-              <div className="empty-state" style={{ padding: "30px 0", fontSize: "11px" }}>
-                No reflection logs found
-              </div>
-            ) : (
-              filteredEntries.map((j) => (
-                <div
-                  key={j.id}
-                  className={`journal-list-item ${activeEntry?.id === j.id ? "active" : ""}`}
-                  onClick={() => setActiveEntry(j)}
-                >
-                  <div className="journal-item-title">{j.title}</div>
-                  <div className="journal-item-meta">
-                    <span>{j.date}</span>
-                    <div className="journal-item-attachments">
-                      {(j.photos && j.photos.length > 0) && <span title={`${j.photos.length} photos`}>📷</span>}
-                      {(j.voiceMemos && j.voiceMemos.length > 0) && <span title={`${j.voiceMemos.length} voice recordings`}>🎙️</span>}
-                    </div>
-                  </div>
-                  <button
-                    className="journal-item-delete"
-                    onClick={(e) => handleDeleteEntry(j.id, e)}
-                    title="Delete Entry"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        {/* Sidebar (Subcomponent) */}
+        <JournalSidebar
+          journals={journals}
+          journalsLoading={journalsLoading}
+          activeEntryId={activeEntry?.id}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSelectEntry={setActiveEntry}
+          onDeleteEntry={handleDeleteEntry}
+          filteredEntries={filteredEntries}
+        />
 
         {/* Content Pane */}
         <div className="journal-content">
@@ -1190,9 +1595,17 @@ export const Journal: React.FC = () => {
                     onChange={(e) => setActiveEntry({ ...activeEntry, title: e.target.value })}
                     placeholder="Reflection title..."
                   />
-                  <button className="journal-save-btn" onClick={handleSaveEntry}>
-                    SAVE ENTRY
-                  </button>
+                  
+                  {/* Save button only appears if there is a change in the journal */}
+                  {hasChanges() && (
+                    <button 
+                      className={`journal-save-btn ${saveSuccess ? "success" : ""}`} 
+                      onClick={handleSaveEntry}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? "SAVING..." : saveSuccess ? "✓ SAVED" : "SAVE ENTRY"}
+                    </button>
+                  )}
                 </div>
                 <div className="journal-meta-row">
                   <div className="journal-meta-left">
@@ -1200,265 +1613,89 @@ export const Journal: React.FC = () => {
                       type="date"
                       className="journal-date-input"
                       value={activeEntry.date}
-                      onChange={(e) => setActiveEntry({ ...activeEntry, date: e.target.value })}
+                      onChange={(e) => handleDateChange(e.target.value)}
                     />
                     <span className={`sync-badge ${user ? "online" : ""}`}>
                       {user ? "Cloud Synced" : "Local Storage Draft"}
                     </span>
                   </div>
-                  <button
-                    className="theme-toggle-btn"
-                    onClick={handleRefreshSnapshot}
-                    style={{ borderColor: "var(--color-accent)", color: "var(--color-accent)" }}
-                  >
-                    Refresh Snapshot
-                  </button>
                 </div>
               </div>
 
               {/* Editor Workspace */}
               <div className="journal-editor-body">
-                {/* Expandable Focus Artifact Card */}
-                <div className="focus-snapshot-widget">
-                  <div
-                    className="snapshot-header"
-                    onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
-                  >
-                    <span>✦ MY FOCUS BLUEPRINT — {new Date(activeEntry.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</span>
-                    <span>{isSummaryExpanded ? "▲ HIDE ARTIFACT" : "▼ VIEW ARTIFACT"}</span>
-                  </div>
-
-                  {isSummaryExpanded && (
-                    <>
-                      <div className="snapshot-narrative-box">
-                        <p>
-                          On this day, I dedicated <strong>
-                            {(() => {
-                              const totalSeconds = calculateTotalFocusTime(activeEntry.sessionsSnapshot);
-                              const hours = Math.floor(totalSeconds / 3600);
-                              const minutes = Math.floor((totalSeconds % 3600) / 60);
-                              if (hours === 0 && minutes === 0) return "less than a minute";
-                              const hourPart = hours > 0 ? `${hours} hour${hours > 1 ? "s" : ""}` : "";
-                              const minutePart = minutes > 0 ? `${minutes} minute${minutes > 1 ? "s" : ""}` : "";
-                              if (hourPart && minutePart) return `${hourPart} and ${minutePart}`;
-                              return hourPart || minutePart;
-                            })()}
-                          </strong> of deep focus toward my objectives. I completed <strong>{activeEntry.sessionsSnapshot?.length || 0}</strong> focus blocks, checked off <strong>{activeEntry.sessionsSnapshot?.reduce((acc, s) => acc + (s.todos?.filter(t => t.completed).length || 0), 0) || 0}</strong> subtasks, and captured <strong>{(activeEntry.sessionsSnapshot?.reduce((acc, s) => acc + (s.sidetracks?.length || 0), 0) || 0) + (activeEntry.idleSidetracksSnapshot?.length || 0)}</strong> ideas along the way.
-                        </p>
-                      </div>
-
-                      <div className="snapshot-details-list">
-                        {!activeEntry.sessionsSnapshot || activeEntry.sessionsSnapshot.length === 0 ? (
-                          <div className="hint-text" style={{ padding: "8px 0", textAlign: "center" }}>
-                            No focus logs recorded for this day. Click "Refresh Snapshot" to capture current workspace progress.
-                          </div>
-                        ) : (
-                          <div className="artifact-timeline">
-                            {activeEntry.sessionsSnapshot.map((s, idx) => (
-                              <div key={idx} className="artifact-node">
-                                <div className="artifact-line"></div>
-                                <div className="artifact-dot">{idx + 1}</div>
-                                <div className="artifact-node-content">
-                                  <div className="artifact-node-header">
-                                    <span className="artifact-node-title">{s.task}</span>
-                                    <span className="artifact-node-duration">
-                                      · {formatSummaryDuration(s.duration || 0)} spent
-                                    </span>
-                                  </div>
-                                  
-                                  {/* Notes Feed */}
-                                  {s.notes && s.notes.length > 0 && (
-                                    <div className="artifact-notes-container">
-                                      {s.notes.map((n, i) => (
-                                        <div key={i} className="artifact-note-bubble">
-                                          “ {n.text} ”
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  
-                                  {/* Checklists */}
-                                  {s.todos && s.todos.length > 0 && (
-                                    <div className="artifact-tags-container">
-                                      {s.todos.map((todo, i) => (
-                                        <span key={i} className={`artifact-todo-tag ${todo.completed ? "completed" : "pending"}`}>
-                                          {todo.completed ? "✓" : "○"} {todo.text}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  {/* Sidetracks */}
-                                  {s.sidetracks && s.sidetracks.length > 0 && (
-                                    <div className="artifact-tags-container">
-                                      {s.sidetracks.map((st, i) => (
-                                        <span key={i} className="artifact-sidetrack-badge">
-                                          💡 {st}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-
-                            {activeEntry.idleSidetracksSnapshot && activeEntry.idleSidetracksSnapshot.length > 0 && (
-                              <div className="artifact-node" style={{ opacity: 0.85 }}>
-                                <div className="artifact-dot" style={{ borderColor: "var(--color-muted)", color: "var(--color-muted)" }}>💡</div>
-                                <div className="artifact-node-content">
-                                  <div className="artifact-node-header">
-                                    <span className="artifact-node-title" style={{ color: "var(--color-muted)" }}>
-                                      Braindump & Inbox Discoveries
-                                    </span>
-                                  </div>
-                                  <div className="artifact-tags-container">
-                                    {activeEntry.idleSidetracksSnapshot.map((st, i) => (
-                                      <span key={i} className="artifact-sidetrack-badge" style={{ backgroundColor: "var(--color-surface)", borderColor: "var(--color-border)" }}>
-                                        💡 {st}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Main Reflection textarea */}
-                <textarea
-                  className="journal-textarea"
-                  value={activeEntry.content}
-                  onChange={(e) => setActiveEntry({ ...activeEntry, content: e.target.value })}
-                  placeholder="Reflect on your focus flow today. What triggered sidetracks? What went well? How was your energy?"
+                {/* Integrated Focus Blueprint section (Subcomponent) */}
+                <FocusBlueprint
+                  sessionsSnapshot={getSessionsForDate(activeEntry.date)}
+                  idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
+                  date={activeEntry.date}
                 />
 
-                {/* Media Section */}
-                <div className="journal-media-section">
-                  {/* Photo Upload Attachment */}
-                  <div>
-                    <div className="photo-gallery-title" style={{ marginBottom: "8px" }}>
-                      Attached Photos (Local Only)
+                {/* Notion-style sections list */}
+                <div className="journal-sections-container">
+                  {sections.length === 0 ? (
+                    <div className="hint-text" style={{ padding: "20px 0", textAlign: "center" }}>
+                      Click on the blocks below to start writing your reflections.
                     </div>
-                    <div className="photo-grid">
-                      {activeEntry.photos?.map((photo) => {
-                        const base64 = loadedMedia[photo.id];
-                        if (base64) {
-                          return (
-                            <div
-                              key={photo.id}
-                              className="photo-card"
-                              onClick={() => setLightboxPhoto(photo)}
-                            >
-                              <img src={base64} alt={photo.name} className="photo-img" />
-                              <button
-                                className="photo-delete-overlay"
-                                onClick={(e) => handleDeletePhoto(photo.id, e)}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          );
-                        } else {
-                          // Cached photo content missing (different device or cache wiped)
-                          return (
-                            <div key={photo.id} className="photo-fallback-card" title={photo.name}>
-                              📷 Local cache missing
-                            </div>
-                          );
-                        }
-                      })}
-                      <div className="photo-card-placeholder" onClick={handleAddPhotoClick}>
-                        +
-                      </div>
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handlePhotoUpload}
-                        accept="image/*"
-                        style={{ display: "none" }}
+                  ) : (
+                    sections.map((section, idx) => (
+                      <JournalSectionItem
+                        key={section.id}
+                        section={section}
+                        idx={idx}
+                        totalSections={sections.length}
+                        newlyCreatedSectionId={newlyCreatedSectionId}
+                        updateSectionValue={updateSectionValue}
+                        toggleTodoSection={toggleTodoSection}
+                        deleteSection={deleteSection}
+                        moveSection={moveSection}
                       />
-                    </div>
-                  </div>
-
-                  {/* Voice Reflections Recorder */}
-                  <div>
-                    <div className="photo-gallery-title" style={{ marginBottom: "8px" }}>
-                      Voice Reflections (Local Only)
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      <div className="voice-memo-recorder">
-                        <button
-                          className={`record-btn ${recording ? "recording" : ""}`}
-                          onClick={recording ? stopRecording : startRecording}
-                          title={recording ? "Stop Recording" : "Record Memo"}
-                        >
-                          {recording ? "■" : "🎙️"}
-                        </button>
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <span style={{ fontSize: "11px", fontWeight: "bold" }}>
-                            {recording ? "Recording..." : "Capture voice memo"}
-                          </span>
-                          <span className="hint-text">
-                            {recording ? `Timer: ${formatTimerLabel(recordTime)}` : "Max 5 minutes recommended"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {activeEntry.voiceMemos && activeEntry.voiceMemos.length > 0 && (
-                        <div className="voice-memo-list">
-                          {activeEntry.voiceMemos.map((memo) => {
-                            const base64 = loadedMedia[memo.id];
-                            return (
-                              <div key={memo.id} className="voice-memo-item">
-                                <div className="voice-memo-info">
-                                  <input
-                                    type="text"
-                                    className="voice-memo-label-input"
-                                    value={memo.label || ""}
-                                    onChange={(e) => handleVoiceLabelChange(memo.id, e.target.value)}
-                                    placeholder="Memo label..."
-                                  />
-                                  {base64 ? (
-                                    <audio
-                                      src={base64}
-                                      controls
-                                      className="voice-memo-player"
-                                    />
-                                  ) : (
-                                    <div className="voice-memo-fallback">
-                                      🎙️ Local memo missing
-                                    </div>
-                                  )}
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                  {memo.duration && (
-                                    <span className="hint-text">{formatTimerLabel(memo.duration)}</span>
-                                  )}
-                                  <button
-                                    className="delete-btn"
-                                    onClick={() => handleDeleteVoiceMemo(memo.id)}
-                                    title="Delete voice memo"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                    ))
+                  )}
+                  
+                  {/* Block Actions Toolbar */}
+                  <div className="block-toolbar">
+                    <button className="toolbar-block-btn" onClick={() => addSection("text")}>
+                      📝 Text Block
+                    </button>
+                    <button className="toolbar-block-btn" onClick={() => addSection("heading")}>
+                      🇭 Heading Block
+                    </button>
+                    <button className="toolbar-block-btn" onClick={() => addSection("todo")}>
+                      ☑ Checkbox Block
+                    </button>
+                    <button className="toolbar-block-btn" onClick={() => addSection("bullet")}>
+                      • Bullet Block
+                    </button>
+                    <button className="toolbar-block-btn" onClick={() => addSection("callout")}>
+                      💡 Callout Box
+                    </button>
                   </div>
                 </div>
               </div>
             </>
           )}
         </div>
+
+        {/* Attachments Sidebar (Right Sidebar) (Subcomponent) */}
+        {activeEntry && (
+          <JournalAttachments
+            activeEntry={activeEntry}
+            loadedMedia={loadedMedia}
+            recording={recording}
+            recordTime={recordTime}
+            formatTimerLabel={formatTimerLabel}
+            onAddPhotoClick={handleAddPhotoClick}
+            onPhotoUpload={handlePhotoUpload}
+            onDeletePhoto={handleDeletePhoto}
+            onLightboxPhoto={setLightboxPhoto}
+            fileInputRef={fileInputRef}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onDeleteVoiceMemo={handleDeleteVoiceMemo}
+            onVoiceLabelChange={handleVoiceLabelChange}
+          />
+        )}
       </div>
 
       {/* Floating status display to notify about image limitation */}
@@ -1466,7 +1703,7 @@ export const Journal: React.FC = () => {
         className="hint-text"
         style={{
           width: "100%",
-          maxWidth: "900px",
+          maxWidth: "1400px",
           textAlign: "center",
           marginTop: "12px",
           opacity: 0.7,

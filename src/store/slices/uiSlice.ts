@@ -1,6 +1,6 @@
-import { StateCreator } from "zustand";
-import { LockinStore } from "../useLockinStore";
-import { AppMode, Theme } from "../../types";
+import type { StateCreator } from "zustand";
+import type { LockinStore } from "../useLockinStore";
+import type { AppMode, Theme } from "../../types";
 
 export interface UISlice {
   mode: AppMode;

@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { createUISlice, UISlice } from "./slices/uiSlice";
-import { createTaskSlice, TaskSlice } from "./slices/taskSlice";
-import { createArchiveSlice, ArchiveSlice } from "./slices/archiveSlice";
-import { createSessionSlice, SessionSlice } from "./slices/sessionSlice";
+import { createUISlice, type UISlice } from "./slices/uiSlice";
+import { createTaskSlice, type TaskSlice } from "./slices/taskSlice";
+import { createArchiveSlice, type ArchiveSlice } from "./slices/archiveSlice";
+import { createSessionSlice, type SessionSlice } from "./slices/sessionSlice";
 
 export type LockinStore = UISlice & TaskSlice & ArchiveSlice & SessionSlice;
 
