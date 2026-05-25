@@ -101,6 +101,22 @@ export function getCommandSuggestions(
             description: `Resume: ${c.session.task}`
           });
         });
+      } else if (schema.name === "star") {
+        const candidates = sessions.map((s, idx) => ({
+          session: s,
+          indexFromEnd: sessions.length - idx
+        })).reverse();
+
+        const filtered = typedArgPart
+          ? candidates.filter(c => c.session.task.toLowerCase().includes(typedArgPart))
+          : candidates;
+
+        filtered.slice(0, 5).forEach((c) => {
+          suggestions.push({
+            command: `${baseInput}${c.indexFromEnd}`,
+            description: `${c.session.isStarred ? "Unstar" : "Star"}: ${c.session.task}`
+          });
+        });
       } else if (schema.name === "remove-queue") {
         const candidates = queue.map((q, idx) => ({
           q,

@@ -43,6 +43,7 @@ export type Session = {
   timerEndElapsed?: number; // The elapsed second value at which the in-session timer expires
   estimatedDuration?: number;
   energyRating?: number;
+  isStarred?: boolean;
 };
 
 export type QueueItem = {

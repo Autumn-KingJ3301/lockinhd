@@ -52,6 +52,7 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
   const closeArchive = useLockinStore((state) => state.closeArchive);
   const toggleTrace = useLockinStore((state) => state.toggleTrace);
   const initiateSessionSetup = useLockinStore((state) => state.initiateSessionSetup);
+  const toggleStarSession = useLockinStore((state) => state.toggleStarSession);
 
   // Local Ref for auto-scrolling
   const notesEndRef = useRef<HTMLDivElement>(null);
@@ -175,7 +176,30 @@ export const CoreLockin: React.FC<CoreLockinProps> = ({
                 <div className="badge badge-revision" style={{ fontSize: "11px" }}>rev {selectedHistorySession.revision || 1}</div>
               </div>
 
-              <div className="task-name-large">{selectedHistorySession.task}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", width: "100%" }}>
+                <div className="task-name-large" style={{ margin: 0, flexGrow: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {selectedHistorySession.task}
+                </div>
+                <button
+                  onClick={() => toggleStarSession(selectedHistorySession.id || selectedHistorySession.startTime)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "4px",
+                    fontSize: "20px",
+                    color: selectedHistorySession.isStarred ? "var(--color-accent, #e5c158)" : "var(--color-muted)",
+                    transition: "transform 0.15s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  className="star-button-large"
+                  title={selectedHistorySession.isStarred ? "Unstar session" : "Star session"}
+                >
+                  {selectedHistorySession.isStarred ? "★" : "☆"}
+                </button>
+              </div>
 
               <div className="wrap-duration" style={{ fontSize: "12px", marginBottom: "16px", color: "var(--color-muted)", fontFamily: "var(--font-mono)" }}>
                 {isViewingRevision ? "Revision Time: " : "Total Focus Time: "}

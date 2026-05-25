@@ -136,6 +136,15 @@ export const commandRegistry: CommandSchema[] = [
     ]
   },
   {
+    name: "star",
+    category: "actions",
+    description: "Star/unstar a completed session by history index or toggles the selected session's star status",
+    shortcuts: ["st"],
+    args: [
+      { name: "index", type: "index", optional: true }
+    ]
+  },
+  {
     name: "done",
     category: "actions",
     description: "End session",

@@ -182,6 +182,7 @@ export interface LockinStoreActions {
   toggleArchivesPanel: () => void;
   setArchiveConfirmPending: (val: boolean) => void;
   closeArchive: () => void;
+  toggleStarSession: (sessionId: number) => void;
 }
 
 export type LockinStore = LockinStoreState & LockinStoreActions;
@@ -1180,6 +1181,41 @@ export const useLockinStore = create<LockinStore>()(
       },
       setJournals: (journals) => set({ journals }),
       setJournalsLoading: (journalsLoading) => set({ journalsLoading }),
+      toggleStarSession: (sessionId) => {
+        set((state) => {
+          const updatedSessions = state.sessions.map((s) => {
+            if ((s.id || s.startTime) === sessionId) {
+              return { ...s, isStarred: !s.isStarred };
+            }
+            return s;
+          });
+
+          let updatedSelected = state.selectedHistorySession;
+          if (
+            state.selectedHistorySession &&
+            (state.selectedHistorySession.id || state.selectedHistorySession.startTime) === sessionId
+          ) {
+            updatedSelected = {
+              ...state.selectedHistorySession,
+              isStarred: !state.selectedHistorySession.isStarred,
+            };
+          }
+
+          let updatedWrap = state.wrapData;
+          if (state.wrapData && (state.wrapData.id || state.wrapData.startTime) === sessionId) {
+            updatedWrap = {
+              ...state.wrapData,
+              isStarred: !state.wrapData.isStarred,
+            };
+          }
+
+          return {
+            sessions: updatedSessions,
+            selectedHistorySession: updatedSelected,
+            wrapData: updatedWrap,
+          };
+        });
+      },
     }),
     {
       name: "lockin-store-state",

@@ -3804,5 +3804,45 @@ html.light .recurrence-modal-overlay {
   color: var(--color-accent);
 }
 
+/* Star Buttons & Toggles styling */
+.star-button {
+  opacity: 0.5;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+}
+
+.star-button:hover {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.queue-item:hover .star-button {
+  opacity: 0.8;
+}
+
+.star-button-large {
+  opacity: 0.7;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease;
+}
+
+.star-button-large:hover {
+  opacity: 1;
+  transform: scale(1.25);
+}
+
+.star-filter-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.star-filter-btn:hover {
+  transform: scale(1.05);
+  border-color: var(--color-accent) !important;
+  color: var(--color-accent) !important;
+}
+
+.star-filter-btn:active {
+  transform: scale(0.95);
+}
+
+
 
 

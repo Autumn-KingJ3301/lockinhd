@@ -113,6 +113,7 @@ export const Home = () => {
   const discardStash = useLockinStore((state) => state.discardStash);
   const closeArchive = useLockinStore((state) => state.closeArchive);
   const activeArchiveId = useLockinStore((state) => state.activeArchiveId);
+  const toggleStarSession = useLockinStore((state) => state.toggleStarSession);
 
   const activeTheme = useThemeStore((state) => {
     const id = state.activeThemeId;
@@ -941,6 +942,38 @@ export const Home = () => {
         if (!isNaN(index) && index >= 1 && index <= sessions.length) {
           initiateSessionSetup(sessions[sessions.length - index].task, { continueSession: sessions[sessions.length - index] });
           setToastMsg(`Resuming session: ${sessions[sessions.length - index].task}...`);
+        } else {
+          setToastMsg(`Invalid session index. Provide 1 to ${sessions.length}.`);
+        }
+      }
+      setInput("");
+      return;
+    }
+
+    if (cmdName === "star") {
+      if (sessions.length === 0) {
+        setToastMsg("No completed sessions in history to star.");
+        setInput("");
+        return;
+      }
+      if (!args) {
+        if (selectedHistorySession) {
+          const isCurrentlyStarred = selectedHistorySession.isStarred;
+          toggleStarSession(selectedHistorySession.id || selectedHistorySession.startTime);
+          setToastMsg(isCurrentlyStarred ? "Session unstarred." : "Session starred!");
+        } else {
+          const lastSession = sessions[sessions.length - 1];
+          const isCurrentlyStarred = lastSession.isStarred;
+          toggleStarSession(lastSession.id || lastSession.startTime);
+          setToastMsg(isCurrentlyStarred ? "Last session unstarred." : "Last session starred!");
+        }
+      } else {
+        const index = parseInt(args, 10);
+        if (!isNaN(index) && index >= 1 && index <= sessions.length) {
+          const targetSession = sessions[sessions.length - index];
+          const isCurrentlyStarred = targetSession.isStarred;
+          toggleStarSession(targetSession.id || targetSession.startTime);
+          setToastMsg(isCurrentlyStarred ? `Unstarred: ${targetSession.task}` : `Starred: ${targetSession.task}`);
         } else {
           setToastMsg(`Invalid session index. Provide 1 to ${sessions.length}.`);
         }
