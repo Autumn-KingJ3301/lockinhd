@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 import { formatSummaryDuration } from "../utils/timeFormatters";
 
@@ -8,15 +8,49 @@ export const CallbacksPanel: React.FC = () => {
   const callbacksInput = useLockinStore((state) => state.callbacksInput);
   const setCallbacksInput = useLockinStore((state) => state.setCallbacksInput);
   const addCallbackDirect = useLockinStore((state) => state.addCallbackDirect);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredCallbacks = callbacks.filter((cb) =>
+    cb.task.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="callbacks-panel panel-container">
       <header className="app-header">
         <div className="app-title">CALLBACK CHORES</div>
         <div className="header-status">
-          <span className="session-count">{callbacks.length} pending</span>
+          <span className="session-count">
+            {searchQuery ? `${filteredCallbacks.length} of ` : ""}
+            {callbacks.length} pending
+          </span>
         </div>
       </header>
+
+      {/* Panel Search Bar */}
+      <div className="panel-search-wrapper">
+        <span className="panel-search-icon">🔍</span>
+        <input
+          type="text"
+          className="panel-search-input"
+          placeholder="Search callbacks..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearchQuery("");
+            }
+          }}
+        />
+        {searchQuery && (
+          <button
+            className="panel-search-clear"
+            onClick={() => setSearchQuery("")}
+            title="Clear search"
+          >
+            &times;
+          </button>
+        )}
+      </div>
 
       <div
         className="app-content"
@@ -32,8 +66,8 @@ export const CallbacksPanel: React.FC = () => {
             className="todo-list"
             style={{ flexGrow: 1, overflowY: "auto", marginBottom: "12px", minHeight: 0 }}
           >
-            {callbacks.length > 0 ? (
-              callbacks.map((cb, idx) => (
+            {filteredCallbacks.length > 0 ? (
+              filteredCallbacks.map((cb, idx) => (
                 <div
                   key={cb.id}
                   className="todo-item"
@@ -72,7 +106,7 @@ export const CallbacksPanel: React.FC = () => {
               ))
             ) : (
               <div className="empty-state" style={{ margin: "20px auto" }}>
-                No pending callbacks. Log with `/cb [task]`.
+                {searchQuery ? "No matching callbacks found." : "No pending callbacks. Log with /cb [task]."}
               </div>
             )}
           </div>
@@ -119,3 +153,4 @@ export const CallbacksPanel: React.FC = () => {
     </div>
   );
 };
+

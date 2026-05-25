@@ -213,6 +213,16 @@ export const ArchivePanel: React.FC = () => {
   const navigate = useNavigate();
 
   const [openDrawer, setOpenDrawer] = useState<Archive | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredArchives = archives.filter((archive) => {
+    const term = searchQuery.toLowerCase();
+    const labelMatch = archive.label.toLowerCase().includes(term);
+    const sessionMatch = archive.sessions.some((s) => s.task.toLowerCase().includes(term));
+    const queueMatch = archive.queue.some((q) => q.text.toLowerCase().includes(term));
+    const sidetrackMatch = archive.idleSidetracks.some((i) => i.toLowerCase().includes(term));
+    return labelMatch || sessionMatch || queueMatch || sidetrackMatch;
+  });
 
   const handleRestore = (archiveId: string) => {
     setOpenDrawer(null);
@@ -233,10 +243,39 @@ export const ArchivePanel: React.FC = () => {
           {archivesLoading ? (
             <span className="hint-text" style={{ fontSize: "10px" }}>loading…</span>
           ) : (
-            <span className="session-count">{archives.length} snapshots</span>
+            <span className="session-count">
+              {searchQuery ? `${filteredArchives.length} of ` : ""}
+              {archives.length} snapshot{archives.length !== 1 ? "s" : ""}
+            </span>
           )}
         </div>
       </header>
+
+      {/* Panel Search Bar */}
+      <div className="panel-search-wrapper">
+        <span className="panel-search-icon">🔍</span>
+        <input
+          type="text"
+          className="panel-search-input"
+          placeholder="Search archives..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearchQuery("");
+            }
+          }}
+        />
+        {searchQuery && (
+          <button
+            className="panel-search-clear"
+            onClick={() => setSearchQuery("")}
+            title="Clear search"
+          >
+            &times;
+          </button>
+        )}
+      </div>
 
       <div className="app-content">
         <div className="mode-container">
@@ -246,16 +285,16 @@ export const ArchivePanel: React.FC = () => {
               <br />
               <span style={{ opacity: 0.5 }}>Use /archive to snapshot your workspace.</span>
             </div>
-          ) : (
+          ) : filteredArchives.length > 0 ? (
             <div className="archive-timeline">
-              {archives.map((archive, idx) => {
+              {filteredArchives.map((archive, idx) => {
                 const isOpen = openDrawer?.id === archive.id;
                 return (
                   <div key={archive.id} className="archive-timeline-entry">
                     {/* Dot + connector */}
                     <div className="archive-timeline-track">
-                      <div className={`archive-dot${idx === 0 ? " archive-dot-latest" : ""}`} />
-                      {idx < archives.length - 1 && <div className="archive-connector" />}
+                      <div className={`archive-dot${idx === 0 && !searchQuery ? " archive-dot-latest" : ""}`} />
+                      {idx < filteredArchives.length - 1 && <div className="archive-connector" />}
                     </div>
 
                     {/* Card */}
@@ -267,7 +306,7 @@ export const ArchivePanel: React.FC = () => {
                         <div className="archive-card-main">
                           <div className="archive-card-label">
                             {archive.label}
-                            {idx === 0 && (
+                            {idx === 0 && !searchQuery && (
                               <span className="archive-latest-badge">LATEST</span>
                             )}
                           </div>
@@ -293,6 +332,10 @@ export const ArchivePanel: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          ) : (
+            <div className="empty-state" style={{ fontSize: "11px" }}>
+              No matching archives found.
             </div>
           )}
         </div>

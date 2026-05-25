@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 
 export const TasksPanel: React.FC = () => {
@@ -7,6 +7,11 @@ export const TasksPanel: React.FC = () => {
   const initiateSessionSetup = useLockinStore((state) => state.initiateSessionSetup);
   const input = useLockinStore((state) => state.input);
   const setInput = useLockinStore((state) => state.setInput);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredQueue = queue.filter((item) =>
+    item.text.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleStartTask = (task: { id: number; text: string }) => {
     deleteQueueItem(task.id);
@@ -18,9 +23,38 @@ export const TasksPanel: React.FC = () => {
       <header className="app-header">
         <div className="app-title">GLOBAL TASKS</div>
         <div className="header-status">
-          <span className="session-count">{queue.length} tasks</span>
+          <span className="session-count">
+            {searchQuery ? `${filteredQueue.length} of ` : ""}
+            {queue.length} task{queue.length !== 1 ? "s" : ""}
+          </span>
         </div>
       </header>
+
+      {/* Panel Search Bar */}
+      <div className="panel-search-wrapper">
+        <span className="panel-search-icon">🔍</span>
+        <input
+          type="text"
+          className="panel-search-input"
+          placeholder="Search tasks..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearchQuery("");
+            }
+          }}
+        />
+        {searchQuery && (
+          <button
+            className="panel-search-clear"
+            onClick={() => setSearchQuery("")}
+            title="Clear search"
+          >
+            &times;
+          </button>
+        )}
+      </div>
 
       <div
         className="app-content"
@@ -36,8 +70,8 @@ export const TasksPanel: React.FC = () => {
             className="todo-list"
             style={{ flexGrow: 1, overflowY: "auto", marginBottom: "12px", minHeight: 0 }}
           >
-            {queue.length > 0 ? (
-              queue.map((item, idx) => (
+            {filteredQueue.length > 0 ? (
+              filteredQueue.map((item, idx) => (
                 <div
                   key={item.id}
                   className={`todo-item ${idx === 0 ? "active-triage" : ""}`}
@@ -78,7 +112,7 @@ export const TasksPanel: React.FC = () => {
               ))
             ) : (
               <div className="empty-state" style={{ margin: "20px auto" }}>
-                Queue is empty. Add tasks with `/add [task]`.
+                {searchQuery ? "No matching tasks found." : "Queue is empty. Add tasks with /add [task]."}
               </div>
             )}
           </div>
@@ -109,3 +143,4 @@ export const TasksPanel: React.FC = () => {
     </div>
   );
 };
+

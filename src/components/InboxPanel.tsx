@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 
 export const InboxPanel: React.FC = () => {
@@ -8,15 +8,49 @@ export const InboxPanel: React.FC = () => {
   const setInboxInput = useLockinStore((state) => state.setInboxInput);
   const addIdleSidetrackDirect = useLockinStore((state) => state.addIdleSidetrackDirect);
   const startSessionFromSidetrack = useLockinStore((state) => state.startSessionFromSidetrack);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredSidetracks = idleSidetracks
+    .map((track, originalIndex) => ({ track, originalIndex }))
+    .filter(({ track }) => track.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div className="inbox-panel panel-container">
       <header className="app-header">
         <div className="app-title">BRAINDUMP INBOX</div>
         <div className="header-status">
-          <span className="session-count">{idleSidetracks.length} ideas</span>
+          <span className="session-count">
+            {searchQuery ? `${filteredSidetracks.length} of ` : ""}
+            {idleSidetracks.length} idea{idleSidetracks.length !== 1 ? "s" : ""}
+          </span>
         </div>
       </header>
+
+      {/* Panel Search Bar */}
+      <div className="panel-search-wrapper">
+        <span className="panel-search-icon">🔍</span>
+        <input
+          type="text"
+          className="panel-search-input"
+          placeholder="Search ideas..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearchQuery("");
+            }
+          }}
+        />
+        {searchQuery && (
+          <button
+            className="panel-search-clear"
+            onClick={() => setSearchQuery("")}
+            title="Clear search"
+          >
+            &times;
+          </button>
+        )}
+      </div>
 
       <div
         className="app-content"
@@ -32,13 +66,13 @@ export const InboxPanel: React.FC = () => {
             className="todo-list"
             style={{ flexGrow: 1, overflowY: "auto", marginBottom: "12px", minHeight: 0 }}
           >
-            {idleSidetracks.length > 0 ? (
-              idleSidetracks.map((track, idx) => (
+            {filteredSidetracks.length > 0 ? (
+              filteredSidetracks.map(({ track, originalIndex }) => (
                 <div
-                  key={idx}
+                  key={originalIndex}
                   className="todo-item"
                   style={{ justifyContent: "space-between", cursor: "pointer" }}
-                  onClick={() => startSessionFromSidetrack(idx)}
+                  onClick={() => startSessionFromSidetrack(originalIndex)}
                 >
                   <div style={{ display: "flex", gap: "8px", alignItems: "center", minWidth: 0 }}>
                     <span className="todo-checkbox" style={{ color: "var(--color-muted)" }}>
@@ -61,7 +95,7 @@ export const InboxPanel: React.FC = () => {
                     className="delete-btn"
                     onClick={(e) => {
                       e.stopPropagation();
-                      deleteIdleSidetrack(idx);
+                      deleteIdleSidetrack(originalIndex);
                     }}
                     title="Remove sidetrack"
                     style={{ opacity: 0.6 }}
@@ -72,7 +106,7 @@ export const InboxPanel: React.FC = () => {
               ))
             ) : (
               <div className="empty-state" style={{ margin: "20px auto" }}>
-                Inbox is empty. Log ideas with `/s [idea]` or type below.
+                {searchQuery ? "No matching ideas found." : "Inbox is empty. Log ideas with /s [idea] or type below."}
               </div>
             )}
           </div>
@@ -119,3 +153,4 @@ export const InboxPanel: React.FC = () => {
     </div>
   );
 };
+

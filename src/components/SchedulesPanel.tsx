@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLockinStore } from "../store/useLockinStore";
 import { formatSummaryDuration } from "../utils/timeFormatters";
 
@@ -9,17 +9,51 @@ export const SchedulesPanel: React.FC = () => {
   const setSchedulesInput = useLockinStore((state) => state.setSchedulesInput);
   const addScheduleDirect = useLockinStore((state) => state.addScheduleDirect);
   const setShowRecurrenceModal = useLockinStore((state) => state.setShowRecurrenceModal);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const sortedSchedules = [...schedules].sort((a, b) => (a.scheduledTime || 0) - (b.scheduledTime || 0));
+
+  const filteredSchedules = sortedSchedules.filter((st) =>
+    st.task.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="schedules-panel panel-container">
       <header className="app-header">
         <div className="app-title">SCHEDULED CHORES</div>
         <div className="header-status">
-          <span className="session-count">{schedules.length} active</span>
+          <span className="session-count">
+            {searchQuery ? `${filteredSchedules.length} of ` : ""}
+            {schedules.length} active
+          </span>
         </div>
       </header>
+
+      {/* Panel Search Bar */}
+      <div className="panel-search-wrapper">
+        <span className="panel-search-icon">🔍</span>
+        <input
+          type="text"
+          className="panel-search-input"
+          placeholder="Search schedules..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              setSearchQuery("");
+            }
+          }}
+        />
+        {searchQuery && (
+          <button
+            className="panel-search-clear"
+            onClick={() => setSearchQuery("")}
+            title="Clear search"
+          >
+            &times;
+          </button>
+        )}
+      </div>
 
       <div
         className="app-content"
@@ -35,8 +69,8 @@ export const SchedulesPanel: React.FC = () => {
             className="todo-list"
             style={{ flexGrow: 1, overflowY: "auto", marginBottom: "12px", minHeight: 0 }}
           >
-            {schedules.length > 0 ? (
-              sortedSchedules.map((st, idx) => (
+            {filteredSchedules.length > 0 ? (
+              filteredSchedules.map((st, idx) => (
                 <div
                   key={st.id}
                   className="todo-item"
@@ -89,7 +123,7 @@ export const SchedulesPanel: React.FC = () => {
               ))
             ) : (
               <div className="empty-state" style={{ margin: "20px auto" }}>
-                No pending schedules. Log with `/sched [time] [task]`.
+                {searchQuery ? "No matching schedules found." : "No pending schedules. Log with /sched [time] [task]."}
               </div>
             )}
           </div>
@@ -136,3 +170,4 @@ export const SchedulesPanel: React.FC = () => {
     </div>
   );
 };
+
