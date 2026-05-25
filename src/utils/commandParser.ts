@@ -361,7 +361,9 @@ export const commandRegistry: CommandSchema[] = [
     category: "nav",
     description: "Open the Brainstorm Infinite Canvas",
     shortcuts: ["bs", "canvas"],
-    args: []
+    args: [
+      { name: "name", type: "string", optional: true, allowSpaces: true }
+    ]
   }
 ];
 

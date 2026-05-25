@@ -26,6 +26,7 @@ export interface UISlice {
   showTraceInline: boolean;
   callbacksInput: string;
   schedulesInput: string;
+  lastIdleBoardId: string | null;
 
   setMode: (mode: AppMode) => void;
   setInput: (input: string) => void;
@@ -54,6 +55,7 @@ export interface UISlice {
   setCallbacksInput: (val: string) => void;
   setSchedulesInput: (val: string) => void;
   toggleTrace: (val?: boolean) => void;
+  setLastIdleBoardId: (id: string | null) => void;
 }
 
 export const createUISlice: StateCreator<LockinStore, [], [], UISlice> = (set) => ({
@@ -80,6 +82,7 @@ export const createUISlice: StateCreator<LockinStore, [], [], UISlice> = (set) =
   showTraceInline: false,
   callbacksInput: "",
   schedulesInput: "",
+  lastIdleBoardId: null,
 
   setMode: (mode) => set({ mode }),
   setInput: (input) => set({ input }),
@@ -120,4 +123,5 @@ export const createUISlice: StateCreator<LockinStore, [], [], UISlice> = (set) =
   toggleTrace: (val) => set((state) => ({ 
     showTraceInline: val !== undefined ? val : !state.showTraceInline 
   })),
+  setLastIdleBoardId: (lastIdleBoardId) => set({ lastIdleBoardId }),
 });

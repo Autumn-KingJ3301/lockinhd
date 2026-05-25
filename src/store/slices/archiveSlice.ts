@@ -66,12 +66,15 @@ export const createArchiveSlice: StateCreator<LockinStore, [], [], ArchiveSlice>
       queue: [...state.queue],
       idleSidetracks: [...state.idleSidetracks],
       wrapData: state.wrapData,
+      boards: [...state.boards],
     };
     set({
       sessions: [],
       queue: [],
       idleSidetracks: [],
       wrapData: null,
+      boards: [],
+      activeBoardId: null,
       mode: "idle",
       session: null,
       triageSidetracks: [],
@@ -91,7 +94,8 @@ export const createArchiveSlice: StateCreator<LockinStore, [], [], ArchiveSlice>
     const hasContent =
       state.sessions.length > 0 ||
       state.queue.length > 0 ||
-      state.idleSidetracks.length > 0;
+      state.idleSidetracks.length > 0 ||
+      state.boards.length > 0;
 
     const newStash: StashData | null = hasContent
       ? {
@@ -99,6 +103,7 @@ export const createArchiveSlice: StateCreator<LockinStore, [], [], ArchiveSlice>
           queue: [...state.queue],
           idleSidetracks: [...state.idleSidetracks],
           wrapData: state.wrapData,
+          boards: [...state.boards],
           stashedAt: Date.now(),
         }
       : null;
@@ -108,6 +113,8 @@ export const createArchiveSlice: StateCreator<LockinStore, [], [], ArchiveSlice>
       queue: archive.queue,
       idleSidetracks: archive.idleSidetracks,
       wrapData: archive.wrapData,
+      boards: archive.boards || [],
+      activeBoardId: archive.boards && archive.boards.length > 0 ? archive.boards[0].id : null,
       stash: newStash,
       mode: "idle",
       session: null,
@@ -127,6 +134,8 @@ export const createArchiveSlice: StateCreator<LockinStore, [], [], ArchiveSlice>
       queue: stash.queue,
       idleSidetracks: stash.idleSidetracks,
       wrapData: stash.wrapData,
+      boards: stash.boards || [],
+      activeBoardId: stash.boards && stash.boards.length > 0 ? stash.boards[0].id : null,
       stash: null,
       mode: "idle",
       session: null,
@@ -144,6 +153,8 @@ export const createArchiveSlice: StateCreator<LockinStore, [], [], ArchiveSlice>
         queue: stash.queue,
         idleSidetracks: stash.idleSidetracks,
         wrapData: stash.wrapData,
+        boards: stash.boards || [],
+        activeBoardId: stash.boards && stash.boards.length > 0 ? stash.boards[0].id : null,
         stash: null,
         mode: "idle",
         session: null,
@@ -156,6 +167,8 @@ export const createArchiveSlice: StateCreator<LockinStore, [], [], ArchiveSlice>
         queue: [],
         idleSidetracks: [],
         wrapData: null,
+        boards: [],
+        activeBoardId: null,
         mode: "idle",
         session: null,
         activeArchiveId: null,

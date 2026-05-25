@@ -1,15 +1,20 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../../store/useLockinStore";
 import { formatSummaryDuration } from "../../utils/timeFormatters";
 import { NoteItem } from "../ui/NoteItem";
 import { TodoListItem } from "../ui/TodoListItem";
 
 export const HistoryDetailView: React.FC = () => {
+  const navigate = useNavigate();
   const selectedHistorySession = useLockinStore((state) => state.selectedHistorySession);
+  const boards = useLockinStore((state) => state.boards);
+  const archives = useLockinStore((state) => state.archives);
   const selectedRevisionIndex = useLockinStore((state) => state.selectedRevisionIndex);
   const setSelectedHistorySession = useLockinStore((state) => state.setSelectedHistorySession);
   const setSelectedRevisionIndex = useLockinStore((state) => state.setSelectedRevisionIndex);
   const toggleStarSession = useLockinStore((state) => state.toggleStarSession);
+  const setActiveBoardId = useLockinStore((state) => state.setActiveBoardId);
 
   if (!selectedHistorySession) return null;
 
@@ -20,6 +25,19 @@ export const HistoryDetailView: React.FC = () => {
   const displayData = isViewingRevision 
     ? selectedHistorySession.revisionHistory![selectedRevisionIndex!] 
     : selectedHistorySession;
+
+  // Find the board, searching through current workspace and archives if necessary
+  let brainstormBoard = selectedHistorySession.brainstormBoardId ? boards.find(b => b.id === selectedHistorySession.brainstormBoardId) : null;
+  
+  if (!brainstormBoard && selectedHistorySession.brainstormBoardId) {
+    for (const archive of archives) {
+      const found = archive.boards?.find(b => b.id === selectedHistorySession.brainstormBoardId);
+      if (found) {
+        brainstormBoard = found;
+        break;
+      }
+    }
+  }
 
   return (
     <div className="mode-container" key="history-detail" style={{ animation: "none" }}>
@@ -74,6 +92,21 @@ export const HistoryDetailView: React.FC = () => {
         {isViewingRevision ? "Revision Time: " : "Total Focus Time: "}
         {formatSummaryDuration(displayData.duration || 0)}
       </div>
+
+      {brainstormBoard && (
+        <div 
+          className="resume-cue-banner" 
+          style={{ cursor: "pointer", border: "1px solid var(--color-accent)", backgroundColor: "var(--color-accent-bg)", marginBottom: "16px" }}
+          onClick={() => {
+            setActiveBoardId(brainstormBoard!.id);
+            navigate(`/brainstorm?review=true&boardId=${brainstormBoard!.id}`);
+          }}
+        >
+          <span className="resume-cue-icon">🎨</span>
+          <span className="resume-cue-text">Associated Brainstorm: <strong>{brainstormBoard.title}</strong></span>
+          <span className="badge" style={{ marginLeft: "auto", fontSize: "9px" }}>View Board [Read Only]</span>
+        </div>
+      )}
 
       {displayData.todos && displayData.todos.length > 0 && (
         <div className="todos-section" style={{ marginBottom: "16px" }}>

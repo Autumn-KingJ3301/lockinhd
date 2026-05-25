@@ -32,6 +32,16 @@
   min-width: 0;
 }
 
+.brainstorm-agenda-prefix {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: var(--theme-font-weight-bold, 700);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-right: 4px;
+}
+
 .brainstorm-title-input {
   min-width: 180px;
   max-width: 360px;

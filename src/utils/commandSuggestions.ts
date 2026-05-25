@@ -1,6 +1,7 @@
 import type { AppMode, Session, QueueItem } from "../types";
 import { commandRegistry, getParsedCommand } from "./commandParser";
 import { useThemeStore } from "../store/useThemeStore";
+import { useLockinStore } from "../store/useLockinStore";
 
 export type CommandSuggestion = {
   command: string;
@@ -226,6 +227,16 @@ export function getCommandSuggestions(
             suggestions.push({
               command: `${baseInput}${t.id}`,
               description: `Uninstall theme: ${t.name} v${t.version || "1.0.0"}`
+            });
+          }
+        });
+      } else if (schema.name === "brainstorm") {
+        const boards = useLockinStore.getState().boards;
+        boards.forEach((board) => {
+          if (board.title.toLowerCase().includes(typedArgPart)) {
+            suggestions.push({
+              command: `${baseInput}${board.title}`,
+              description: `Open board: ${board.title}`
             });
           }
         });

@@ -4,6 +4,7 @@ import type { Session, SessionRevision, SessionTrend, Note, TodoItem, Recurrence
 import { playPopSound, playChimeSound, playMegaChimeSound } from "../../utils/audioSynth";
 import { triggerConfetti } from "../../utils/confetti";
 import { parseDuration } from "../../utils/commandParser";
+import { sanitizeBrainstormBoard } from "./brainstormSlice";
 
 function calculateNextRun(lastScheduled: number, recurrence: RecurrenceData): number {
   const date = new Date(lastScheduled);
@@ -67,6 +68,7 @@ export interface SessionSlice {
   submitSetupEnergy: (energyStr: string) => void;
   cancelSessionSetup: () => void;
   checkCallbacks: () => void;
+  associateBoardToSession: (boardId: string) => void;
 }
 
 export const createSessionSlice: StateCreator<LockinStore, [], [], SessionSlice> = (set, get) => ({
@@ -483,7 +485,12 @@ export const createSessionSlice: StateCreator<LockinStore, [], [], SessionSlice>
   },
 
   setInboxInput: (inboxInput) => set({ inboxInput }),
-  setCloudData: (data) => set((state) => ({ ...state, ...data })),
+  
+  setCloudData: (data) => set((state) => ({ 
+    ...state, 
+    ...data,
+    boards: data.boards ? data.boards.map(sanitizeBrainstormBoard) : state.boards
+  })),
 
   setResumeCueToLastSession: (cue) => set((state) => {
     if (state.sessions.length > 0) {
@@ -623,6 +630,13 @@ export const createSessionSlice: StateCreator<LockinStore, [], [], SessionSlice>
       set({ schedules: newSchedules });
       startPanicSession(schedule.task, schedule.duration, schedule.duration, 3);
       set({ toastMsg: `Forced chore: ${schedule.task}` });
+    }
+  },
+
+  associateBoardToSession: (boardId) => {
+    const { session } = get();
+    if (session) {
+      set({ session: { ...session, brainstormBoardId: boardId } });
     }
   },
 });

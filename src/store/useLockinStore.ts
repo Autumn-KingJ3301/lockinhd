@@ -73,6 +73,7 @@ export const useLockinStore = create<LockinStore>()(
         brainstormSchemaVersion: state.brainstormSchemaVersion,
         boards: state.boards,
         activeBoardId: state.activeBoardId,
+        lastIdleBoardId: state.lastIdleBoardId,
       }),
     }
   )

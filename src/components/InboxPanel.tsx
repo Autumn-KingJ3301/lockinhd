@@ -1,8 +1,13 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../store/useLockinStore";
 
 export const InboxPanel: React.FC = () => {
+  const navigate = useNavigate();
   const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
+  const boards = useLockinStore((state) => state.boards);
+  const lastIdleBoardId = useLockinStore((state) => state.lastIdleBoardId);
+  const setActiveBoardId = useLockinStore((state) => state.setActiveBoardId);
   const deleteIdleSidetrack = useLockinStore((state) => state.deleteIdleSidetrack);
   const inboxInput = useLockinStore((state) => state.inboxInput);
   const setInboxInput = useLockinStore((state) => state.setInboxInput);
@@ -13,6 +18,8 @@ export const InboxPanel: React.FC = () => {
   const filteredSidetracks = idleSidetracks
     .map((track, originalIndex) => ({ track, originalIndex }))
     .filter(({ track }) => track.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const lastIdleBoard = lastIdleBoardId ? boards.find(b => b.id === lastIdleBoardId) : null;
 
   return (
     <div className="inbox-panel panel-container">
@@ -61,6 +68,19 @@ export const InboxPanel: React.FC = () => {
           style={{ flexGrow: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
           key="inbox"
         >
+          {lastIdleBoard && (
+            <div 
+              className="resume-cue-banner" 
+              style={{ cursor: "pointer", border: "1px solid var(--color-accent)", backgroundColor: "var(--color-accent-bg)", marginBottom: "12px" }}
+              onClick={() => {
+                setActiveBoardId(lastIdleBoard.id);
+                navigate("/brainstorm");
+              }}
+            >
+              <span className="resume-cue-icon">🎨</span>
+              <span className="resume-cue-text" style={{ fontSize: "11px" }}>Current Brainstorm: <strong>{lastIdleBoard.title}</strong></span>
+            </div>
+          )}
           <div className="section-label">Jumping Ideas</div>
           <div
             className="todo-list"

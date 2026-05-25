@@ -46,6 +46,8 @@ export const Journal: React.FC = () => {
   const journalsLoading = useLockinStore((s) => s.journalsLoading);
   const sessions = useLockinStore((s) => s.sessions);
   const idleSidetracks = useLockinStore((s) => s.idleSidetracks);
+  const boards = useLockinStore((s) => s.boards);
+  const archives = useLockinStore((s) => s.archives);
   const saveJournalEntry = useLockinStore((s) => s.saveJournalEntry);
   const deleteJournalEntry = useLockinStore((s) => s.deleteJournalEntry);
   const setToastMsg = useLockinStore((s) => s.setToastMsg);
@@ -182,6 +184,21 @@ export const Journal: React.FC = () => {
       setToastMsg("Journal automatically created for today!");
     }
   }, [journalsLoading, journals, activeEntry]);
+
+  // Merge boards across current workspace and archives for activity tracking
+  const getMergedBoards = () => {
+    const allBoards = [...boards];
+    archives.forEach(arc => {
+      if (arc.boards) {
+        arc.boards.forEach(b => {
+          if (!allBoards.some(existing => existing.id === b.id)) {
+            allBoards.push(b);
+          }
+        });
+      }
+    });
+    return allBoards;
+  };
 
   // Enforce single reflection entry per day on date picker change
   const handleDateChange = (newDate: string) => {
@@ -1697,6 +1714,8 @@ export const Journal: React.FC = () => {
                   <FocusBlueprint
                     sessionsSnapshot={getSessionsForDate(activeEntry.date)}
                     idleSidetracksSnapshot={getSidetracksForDate(activeEntry.date)}
+                    boardSnapshots={activeEntry.boardSnapshots}
+                    allBoards={getMergedBoards()}
                     date={activeEntry.date}
                   />
 

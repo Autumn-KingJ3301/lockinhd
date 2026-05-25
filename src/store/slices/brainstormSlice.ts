@@ -48,8 +48,18 @@ export const sanitizeBrainstormBoard = (board: BrainstormBoard): BrainstormBoard
   return {
     ...board,
     elements: (board.elements || []).map(sanitizeElement).filter(Boolean),
-    notes: Array.isArray(board.notes) ? board.notes : [],
-    tasks: Array.isArray(board.tasks) ? board.tasks : [],
+    notes: Array.isArray(board.notes) ? board.notes.map(n => ({
+      ...n,
+      createdAt: n.createdAt || board.createdAt || Date.now()
+    })) : [],
+    tasks: Array.isArray(board.tasks) ? board.tasks.map(t => ({
+      ...t,
+      createdAt: t.createdAt || board.createdAt || Date.now()
+    })) : [],
+    agenda: Array.isArray(board.agenda) ? board.agenda.map(a => ({
+      ...a,
+      createdAt: a.createdAt || board.createdAt || Date.now()
+    })) : [],
     connections: Array.isArray(board.connections) ? board.connections : [],
     appState: {
       ...appState,
@@ -60,6 +70,8 @@ export const sanitizeBrainstormBoard = (board: BrainstormBoard): BrainstormBoard
       scrollX: 0,
       scrollY: 0,
     },
+    updatedAt: board.updatedAt || board.createdAt || Date.now(),
+    createdAt: board.createdAt || Date.now(),
   };
 };
 
@@ -292,6 +304,7 @@ export const createBrainstormSlice: StateCreator<
       id: createId("agenda"),
       text,
       completed: false,
+      createdAt: Date.now(),
     };
     set((state) => ({
       boards: state.boards.map((board) =>

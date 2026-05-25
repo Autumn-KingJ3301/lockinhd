@@ -8,10 +8,14 @@ import { ThemeStore } from "./pages/ThemeStore";
 import { Journal } from "./pages/Journal";
 import { Brainstorm } from "./pages/Brainstorm";
 import { useGlobalTheme } from "./hooks/useGlobalTheme";
+import { useCloudSync } from "./hooks/useCloudSync";
+import { useGlobalTimer } from "./hooks/useGlobalTimer";
 import { useLockinStore } from "./store/useLockinStore";
 
 function App() {
   useGlobalTheme();
+  useCloudSync();
+  useGlobalTimer();
   const rehydrateTimer = useLockinStore((state) => state.rehydrateTimer);
 
   useEffect(() => {

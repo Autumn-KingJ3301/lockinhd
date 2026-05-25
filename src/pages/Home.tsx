@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../store/useLockinStore";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
-import { useCloudSync } from "../hooks/useCloudSync";
 import { Toolbar } from "../components/Toolbar";
 import { HistoryPanel } from "../components/HistoryPanel";
 import { InboxPanel } from "../components/InboxPanel";
@@ -18,98 +17,32 @@ import { AuroraCanvas } from "../components/AuroraCanvas";
 import { ThemeEffectsOverlay } from "../components/ThemeEffectsOverlay";
 import { presets } from "../themes/presets";
 import { ArchivePanel, ArchiveConfirmBar, StashNotifBar } from "../components/ArchivePanel";
-import { playThemeTickSound, playThemePanicExpiredAlarm, playThemeWarningSound } from "../utils/audioSynth";
-import type { Theme } from "../types";
 
 export const Home = () => {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const loading = useAuthStore((state) => state.loading);
 
-  // Activate cloud sync
-  useCloudSync();
-
-  // Select state from centralized Zustand store
   const mode = useLockinStore((state) => state.mode);
   const input = useLockinStore((state) => state.input);
-  const setInput = useLockinStore((state) => state.setInput);
-  const queue = useLockinStore((state) => state.queue);
   const session = useLockinStore((state) => state.session);
-  const sessions = useLockinStore((state) => state.sessions);
-  const idleSidetracks = useLockinStore((state) => state.idleSidetracks);
   const showHistoryPanel = useLockinStore((state) => state.showHistoryPanel);
   const showInboxPanel = useLockinStore((state) => state.showInboxPanel);
   const showTasksPanel = useLockinStore((state) => state.showTasksPanel);
   const theme = useLockinStore((state) => state.theme);
-  const dismissedSuggestions = useLockinStore((state) => state.dismissedSuggestions);
-  const selectedSuggestionIndex = useLockinStore((state) => state.selectedSuggestionIndex);
   const zenMode = useLockinStore((state) => state.zenMode);
-  const soundEnabled = useLockinStore((state) => state.soundEnabled);
-  const triageSidetracks = useLockinStore((state) => state.triageSidetracks);
-  const activeTriageIndex = useLockinStore((state) => state.activeTriageIndex);
-  const selectedHistorySession = useLockinStore((state) => state.selectedHistorySession);
   const showPanicModal = useLockinStore((state) => state.showPanicModal);
-  const elapsed = useLockinStore((state) => state.elapsed);
   const wrapData = useLockinStore((state) => state.wrapData);
 
   // Select store actions
-  const tickElapsed = useLockinStore((state) => state.tickElapsed);
   const setIsSystemDark = useLockinStore((state) => state.setIsSystemDark);
-  const setToastMsg = useLockinStore((state) => state.setToastMsg);
-  const addToQueue = useLockinStore((state) => state.addToQueue);
-  const completeSession = useLockinStore((state) => state.completeSession);
-  const addNote = useLockinStore((state) => state.addNote);
-  const addTodo = useLockinStore((state) => state.addTodo);
-  const toggleTodo = useLockinStore((state) => state.toggleTodo);
-  const toggleTodoTimerByText = useLockinStore((state) => state.toggleTodoTimerByText);
-  const removeTodo = useLockinStore((state) => state.removeTodo);
-  const addSidetrack = useLockinStore((state) => state.addSidetrack);
-  const setDismissedSuggestions = useLockinStore((state) => state.setDismissedSuggestions);
-  const setSelectedSuggestionIndex = useLockinStore((state) => state.setSelectedSuggestionIndex);
-  const exitWrapMode = useLockinStore((state) => state.exitWrapMode);
   const setShowHistoryPanel = useLockinStore((state) => state.setShowHistoryPanel);
   const setShowInboxPanel = useLockinStore((state) => state.setShowInboxPanel);
   const setShowTasksPanel = useLockinStore((state) => state.setShowTasksPanel);
-  const setTheme = useLockinStore((state) => state.setTheme);
-  const deleteQueueItem = useLockinStore((state) => state.deleteQueueItem);
-  const deleteIdleSidetrack = useLockinStore((state) => state.deleteIdleSidetrack);
-  const toggleZenMode = useLockinStore((state) => state.toggleZenMode);
-  const setSoundEnabled = useLockinStore((state) => state.setSoundEnabled);
-  const setResumeCueToLastSession = useLockinStore((state) => state.setResumeCueToLastSession);
-  const processCurrentTriage = useLockinStore((state) => state.processCurrentTriage);
-  const showHelp = useLockinStore((state) => state.showHelp);
-  const toggleHelp = useLockinStore((state) => state.toggleHelp);
-  const setShowHelp = useLockinStore((state) => state.setShowHelp);
-  const setSelectedHistorySession = useLockinStore((state) => state.setSelectedHistorySession);
-  const setSelectedRevisionIndex = useLockinStore((state) => state.setSelectedRevisionIndex);
-  const setPanicTimer = useLockinStore((state) => state.setPanicTimer);
-  const setSessionTimer = useLockinStore((state) => state.setSessionTimer);
-  const setShowPanicModal = useLockinStore((state) => state.setShowPanicModal);
-  const setShowRecurrenceModal = useLockinStore((state) => state.setShowRecurrenceModal);
   const setupStep = useLockinStore((state) => state.setupStep);
-  const setupTaskName = useLockinStore((state) => state.setupTaskName);
-  const initiateSessionSetup = useLockinStore((state) => state.initiateSessionSetup);
-  const submitSetupEstimate = useLockinStore((state) => state.submitSetupEstimate);
-  const submitSetupEnergy = useLockinStore((state) => state.submitSetupEnergy);
-  const cancelSessionSetup = useLockinStore((state) => state.cancelSessionSetup);
-  const addCallback = useLockinStore((state) => state.addCallback);
-  const checkCallbacks = useLockinStore((state) => state.checkCallbacks);
-  const toggleCallbacksPanel = useLockinStore((state) => state.toggleCallbacksPanel);
   const showCallbacksPanel = useLockinStore((state) => state.showCallbacksPanel);
-  const toggleSchedulesPanel = useLockinStore((state) => state.toggleSchedulesPanel);
   const showSchedulesPanel = useLockinStore((state) => state.showSchedulesPanel);
-  const deleteCallbackByIndex = useLockinStore((state) => state.deleteCallbackByIndex);
-  const deleteScheduleByIndex = useLockinStore((state) => state.deleteScheduleByIndex);
   const showArchivesPanel = useLockinStore((state) => state.showArchivesPanel);
-  const toggleArchivesPanel = useLockinStore((state) => state.toggleArchivesPanel);
-  const setArchiveConfirmPending = useLockinStore((state) => state.setArchiveConfirmPending);
-  const createArchive = useLockinStore((state) => state.createArchive);
-  const stash = useLockinStore((state) => state.stash);
-  const popStash = useLockinStore((state) => state.popStash);
-  const discardStash = useLockinStore((state) => state.discardStash);
-  const closeArchive = useLockinStore((state) => state.closeArchive);
-  const activeArchiveId = useLockinStore((state) => state.activeArchiveId);
-  const toggleStarSession = useLockinStore((state) => state.toggleStarSession);
   const showTraceInline = useLockinStore((state) => state.showTraceInline);
 
   const activeTheme = useThemeStore((state) => {
@@ -222,71 +155,6 @@ export const Home = () => {
       window.removeEventListener("keydown", handleShortcuts);
     };
   }, [showHistoryPanel, showInboxPanel, showTasksPanel, showTraceInline, setShowHistoryPanel, setShowInboxPanel, setShowTasksPanel]);
-
-  // Active Timer Effect & Callback Checker
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      if (mode === "active" || mode === "panic") {
-        tickElapsed();
-      }
-      checkCallbacks();
-    }, 1000);
-    return () => clearInterval(intervalId);
-  }, [mode, tickElapsed, checkCallbacks]);
-
-  // Panic Ticks and Alarm sound effect
-  useEffect(() => {
-    const isPanic = mode === "panic" && session?.panicEndElapsed !== undefined;
-    const isTimer = mode === "active" && session?.timerEndElapsed !== undefined;
-
-    if (isPanic || isTimer) {
-      const endElapsed = isPanic ? session!.panicEndElapsed! : session!.timerEndElapsed!;
-      const remaining = endElapsed - elapsed;
-      if (remaining === 120) {
-        if (soundEnabled) {
-          try { playThemeWarningSound(); } catch (e) { }
-        }
-      }
-      if (remaining === 0) {
-        if (soundEnabled) {
-          try { playThemePanicExpiredAlarm(); } catch (e) { }
-        }
-      } else if (remaining < 0) {
-        // Overtime beep alarm every 10 seconds
-        if (remaining % 10 === 0 && soundEnabled) {
-          try { playThemePanicExpiredAlarm(); } catch (e) { }
-        }
-      } else if (remaining <= 15) {
-        // Play click tick every second for critical urgency
-        if (soundEnabled) {
-          try { playThemeTickSound(); } catch (e) { }
-        }
-      } else if (remaining <= 30) {
-        // Play click tick every 3 seconds for mild warning
-        if (remaining % 3 === 0 && soundEnabled) {
-          try { playThemeTickSound(); } catch (e) { }
-        }
-      }
-    }
-  }, [elapsed, mode, session, soundEnabled]);
-
-  // Keyboard Event Handlers
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Escape Key Behavior
-    if (e.key === "Escape") {
-      if (showHelp) {
-        e.preventDefault();
-        setShowHelp(false);
-        return;
-      }
-      if (mode === "panic" && session?.panicEndElapsed !== undefined && showPanicModal) {
-        e.preventDefault();
-        setShowPanicModal(false);
-        setToastMsg("Minimized focus modal. Click floating timer to reopen.");
-        return;
-      }
-    }
-  };
 
   if (loading) {
     return (

@@ -89,9 +89,12 @@ export const CommandBar = React.forwardRef<HTMLInputElement, CommandBarProps>(({
   const addTodo = useLockinStore((state) => state.addTodo);
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
   const removeTodo = useLockinStore((state) => state.removeTodo);
-  const showTraceInline = useLockinStore((state) => state.showTraceInline);
   const toggleTrace = useLockinStore((state) => state.toggleTrace);
   const setShowRecurrenceModal = useLockinStore((state) => state.setShowRecurrenceModal);
+  const boards = useLockinStore((state) => state.boards);
+  const activeBoardId = useLockinStore((state) => state.activeBoardId);
+  const createBoard = useLockinStore((state) => state.createBoard);
+  const setActiveBoardId = useLockinStore((state) => state.setActiveBoardId);
 
   useEffect(() => {
     if (!input.startsWith("/")) {
@@ -449,7 +452,34 @@ export const CommandBar = React.forwardRef<HTMLInputElement, CommandBarProps>(({
     }
 
     if (cmdName === "brainstorm") {
-      setToastMsg("Opening Brainstorm Canvas...");
+      let boardIdToUse = activeBoardId;
+      if (args.trim()) {
+        const boardName = args.trim();
+        const existingBoard = boards.find(b => b.title.toLowerCase() === boardName.toLowerCase());
+        if (existingBoard) {
+          boardIdToUse = existingBoard.id;
+          setActiveBoardId(existingBoard.id);
+          setToastMsg(`Switching to board: ${existingBoard.title}`);
+        } else {
+          boardIdToUse = createBoard(boardName);
+          setActiveBoardId(boardIdToUse);
+          setToastMsg(`Created new board: ${boardName}`);
+        }
+      } else {
+        setToastMsg("Opening Brainstorm Canvas...");
+      }
+
+      // Link board to context
+      if (mode === "active" || mode === "panic") {
+        if (session && boardIdToUse) {
+           useLockinStore.setState({ session: { ...session, brainstormBoardId: boardIdToUse } });
+        }
+      } else if (mode === "idle") {
+        if (boardIdToUse) {
+          useLockinStore.getState().setLastIdleBoardId(boardIdToUse);
+        }
+      }
+      
       setInput("");
       setTimeout(() => {
         navigate("/brainstorm");

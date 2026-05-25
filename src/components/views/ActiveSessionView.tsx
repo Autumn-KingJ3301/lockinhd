@@ -1,12 +1,18 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useLockinStore } from "../../store/useLockinStore";
 import { formatPanicTime } from "../../utils/timeFormatters";
 import { NoteItem } from "../ui/NoteItem";
 import { TodoListItem } from "../ui/TodoListItem";
 
 export const ActiveSessionView: React.FC<{ notesEndRef: React.RefObject<HTMLDivElement | null> }> = ({ notesEndRef }) => {
-  const [activeTab, setActiveTab] = useState<"todos" | "notes">("todos");
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<"todos" | "notes" | "boards">("todos");
   const session = useLockinStore((state) => state.session);
+  const boards = useLockinStore((state) => state.boards);
+  const setActiveBoardId = useLockinStore((state) => state.setActiveBoardId);
+  const createBoard = useLockinStore((state) => state.createBoard);
+  const associateBoardToSession = useLockinStore((state) => state.associateBoardToSession);
   const elapsed = useLockinStore((state) => state.elapsed);
   const soundEnabled = useLockinStore((state) => state.soundEnabled);
   const toggleTodo = useLockinStore((state) => state.toggleTodo);
@@ -37,6 +43,21 @@ export const ActiveSessionView: React.FC<{ notesEndRef: React.RefObject<HTMLDivE
         </div>
       </div>
       <div className="task-name-large">{session.task}</div>
+
+      {/* Associated Brainstorm Board */}
+      {/* {brainstormBoard && (
+        <div 
+          className="resume-cue-banner" 
+          style={{ cursor: "pointer", border: "1px solid var(--color-accent)", backgroundColor: "var(--color-accent-bg)" }}
+          onClick={() => {
+            setActiveBoardId(brainstormBoard.id);
+            navigate("/brainstorm");
+          }}
+        >
+          <span className="resume-cue-icon">🎨</span>
+          <span className="resume-cue-text">Brainstorm Board: <strong>{brainstormBoard.title}</strong></span>
+        </div>
+      )} */}
 
       {/* Session Timer Banner */}
       {session.timerEndElapsed !== undefined && (
@@ -109,6 +130,12 @@ export const ActiveSessionView: React.FC<{ notesEndRef: React.RefObject<HTMLDivE
         >
           🎙️ Log Feed ({session.notes?.length || 0})
         </button>
+        <button 
+          className={`session-tab-btn ${activeTab === 'boards' ? 'active' : ''}`}
+          onClick={() => setActiveTab('boards')}
+        >
+          🎨 Boards ({boards.length})
+        </button>
       </div>
 
       {activeTab === 'todos' ? (
@@ -131,7 +158,7 @@ export const ActiveSessionView: React.FC<{ notesEndRef: React.RefObject<HTMLDivE
             💡 Break it down: <code>/todo [first small step]</code>
           </div>
         )
-      ) : (
+      ) : activeTab === 'notes' ? (
         <div className="notes-feed-container" style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
           <div style={{ flexGrow: 1, overflowY: "auto" }}>
             {session.notes.length > 0 ? (
@@ -147,6 +174,57 @@ export const ActiveSessionView: React.FC<{ notesEndRef: React.RefObject<HTMLDivE
             )}
             <div ref={notesEndRef} />
           </div>
+        </div>
+      ) : (
+        <div className="boards-tab-container" style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
+          <div className="todo-list" style={{ flexGrow: 1, overflowY: "auto" }}>
+            {boards.length > 0 ? (
+              boards.map((board) => (
+                <div 
+                  key={board.id} 
+                  className={`todo-item ${session.brainstormBoardId === board.id ? "active" : ""}`}
+                  style={{ 
+                    cursor: "pointer", 
+                    justifyContent: "space-between",
+                    borderLeft: session.brainstormBoardId === board.id ? "2px solid var(--color-accent)" : "none",
+                    paddingLeft: session.brainstormBoardId === board.id ? "10px" : "12px"
+                  }}
+                  onClick={() => {
+                    associateBoardToSession(board.id);
+                    setActiveBoardId(board.id);
+                    navigate("/brainstorm");
+                  }}
+                >
+                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <span className="todo-checkbox" style={{ color: "var(--color-muted)" }}>
+                      {session.brainstormBoardId === board.id ? "📍" : "📄"}
+                    </span>
+                    <span className="todo-text">{board.title}</span>
+                  </div>
+                  {session.brainstormBoardId === board.id && (
+                    <span className="badge" style={{ fontSize: "9px", background: "var(--color-accent-bg)", color: "var(--color-accent)" }}>Active</span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="empty-state" style={{ margin: "auto" }}>
+                No boards created yet.
+              </div>
+            )}
+          </div>
+          <button 
+            className="theme-toggle-btn" 
+            style={{ marginTop: "12px", width: "100%", padding: "10px" }}
+            onClick={() => {
+              const newName = prompt("Board name:", "Session Brainstorm") || "Untitled Board";
+              const newId = createBoard(newName);
+              associateBoardToSession(newId);
+              setActiveBoardId(newId);
+              navigate("/brainstorm");
+            }}
+          >
+            + Create New Board
+          </button>
         </div>
       )}
     </div>

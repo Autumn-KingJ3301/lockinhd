@@ -781,8 +781,8 @@ h1, h2, h3, h4, h5, h6, strong, b, .app-title, .section-label, .command-chip {
 
 /* Toast Notification */
 .toast-notification {
-  position: absolute;
-  top: 52px;
+  position: fixed;
+  top: 64px;
   /* sits right below the header */
   left: 50%;
   transform: translate(-50%, 0);
@@ -793,10 +793,11 @@ h1, h2, h3, h4, h5, h6, strong, b, .app-title, .section-label, .command-chip {
   font-size: 10px;
   padding: 6px 12px;
   border-radius: 2px;
-  z-index: 100;
+  z-index: 100000;
   cursor: pointer;
   pointer-events: auto;
   animation: toastFadeIn 0.25s ease-out forwards;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 @keyframes toastFadeIn {

@@ -44,6 +44,7 @@ export type Session = {
   estimatedDuration?: number;
   energyRating?: number;
   isStarred?: boolean;
+  brainstormBoardId?: string;
 };
 
 export type QueueItem = {
@@ -79,6 +80,7 @@ export type Archive = {
   queue: QueueItem[];
   idleSidetracks: string[];
   wrapData: Session | null;
+  boards?: BrainstormBoard[];
 };
 
 // Stash: a single temporary workspace snapshot (git-stash style)
@@ -88,6 +90,7 @@ export type StashData = {
   idleSidetracks: string[];
   wrapData: Session | null;
   stashedAt: number;
+  boards?: BrainstormBoard[];
 };
 
 // SessionTrend: analytics document stored separately in Firestore
@@ -127,18 +130,22 @@ export type JournalEntry = {
   idleSidetracksSnapshot?: string[];
   photos?: JournalPhoto[];
   voiceMemos?: JournalVoiceMemo[];
+  boardSnapshots?: { boardId: string, boardTitle: string, pngBase64: string }[];
 };
 
 export type AgendaItem = {
   id: string;
   text: string;
   completed: boolean;
+  createdAt: number;
+  updatedAt?: number;
 };
 
 export type BrainstormNote = {
   id: string;
   text: string;
   createdAt: number;
+  updatedAt?: number;
   canvasElementId?: string;
 };
 
@@ -147,6 +154,7 @@ export type BrainstormTask = {
   text: string;
   completed: boolean;
   createdAt: number;
+  updatedAt?: number;
 };
 
 export type BrainstormConnection = {

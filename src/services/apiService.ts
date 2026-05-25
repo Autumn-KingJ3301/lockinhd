@@ -1,4 +1,4 @@
-import type { Session, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask, JournalEntry } from "../types";
+import type { Session, QueueItem, AppMode, Theme, Archive, StashData, SessionTrend, CallbackTask, JournalEntry, BrainstormBoard } from "../types";
 import { firebaseApiService } from "./firebaseService";
 
 export interface LockinData {
@@ -22,6 +22,8 @@ export interface LockinData {
   callbacks?: CallbackTask[];
   schedules?: CallbackTask[];
   journals?: JournalEntry[];
+  boards?: BrainstormBoard[];
+  activeBoardId?: string | null;
 }
 
 export interface IApiService {

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useLockinStore } from "../store/useLockinStore";
 import { apiService, type LockinData } from "../services/apiService";
-import type { Note, TodoItem, Session, SessionRevision, CallbackTask, JournalEntry } from "../types";
+import type { Note, TodoItem, Session, SessionRevision, CallbackTask, JournalEntry, BrainstormBoard, BrainstormNote, BrainstormTask } from "../types";
 
 function isArrayEqual<T>(a: T[], b: T[], itemEqual: (x: T, y: T) => boolean): boolean {
   if (a.length !== b.length) return false;
@@ -64,7 +64,22 @@ function isJournalEntryEqual(a: JournalEntry, b: JournalEntry): boolean {
     a.createdAt === b.createdAt &&
     a.date === b.date &&
     a.title === b.title &&
-    a.content === b.content
+    a.content === b.content &&
+    JSON.stringify(a.sessionsSnapshot || []) === JSON.stringify(b.sessionsSnapshot || []) &&
+    JSON.stringify(a.idleSidetracksSnapshot || []) === JSON.stringify(b.idleSidetracksSnapshot || []) &&
+    (a.photos?.length || 0) === (b.photos?.length || 0) &&
+    (a.voiceMemos?.length || 0) === (b.voiceMemos?.length || 0)
+  );
+}
+
+function isBrainstormBoardEqual(a: BrainstormBoard, b: BrainstormBoard): boolean {
+  return (
+    a.id === b.id &&
+    a.title === b.title &&
+    a.updatedAt === b.updatedAt &&
+    isArrayEqual(a.notes || [], b.notes || [], (x: BrainstormNote, y: BrainstormNote) => x.id === y.id && x.text === y.text) &&
+    isArrayEqual(a.tasks || [], b.tasks || [], (x: BrainstormTask, y: BrainstormTask) => x.id === y.id && x.text === y.text && x.completed === y.completed) &&
+    JSON.stringify(a.elements || []) === JSON.stringify(b.elements || [])
   );
 }
 
@@ -81,6 +96,7 @@ function isDataEqual(a: LockinData, b: LockinData): boolean {
     a.activeTriageIndex === b.activeTriageIndex &&
     a.activeArchiveId === b.activeArchiveId &&
     a.activeArchiveLabel === b.activeArchiveLabel &&
+    a.activeBoardId === b.activeBoardId &&
     isArrayEqual(a.idleSidetracks || [], b.idleSidetracks || [], (x, y) => x === y) &&
     isArrayEqual(a.triageSidetracks || [], b.triageSidetracks || [], (x, y) => x === y) &&
     isArrayEqual(a.queue || [], b.queue || [], (x, y) => x.id === y.id && x.text === y.text) &&
@@ -89,7 +105,8 @@ function isDataEqual(a: LockinData, b: LockinData): boolean {
     isSessionEqual(a.session, b.session) &&
     isSessionEqual(a.wrapData, b.wrapData) &&
     isArrayEqual(a.sessions || [], b.sessions || [], isSessionEqual) &&
-    isArrayEqual(a.journals || [], b.journals || [], isJournalEntryEqual)
+    isArrayEqual(a.journals || [], b.journals || [], isJournalEntryEqual) &&
+    isArrayEqual(a.boards || [], b.boards || [], isBrainstormBoardEqual)
   );
 }
 
@@ -196,6 +213,8 @@ export const useCloudSync = () => {
         callbacks: state.callbacks,
         schedules: state.schedules,
         journals: state.journals,
+        boards: state.boards,
+        activeBoardId: state.activeBoardId,
       };
 
       // Skip sync if values are equal to what we already saved/queued
