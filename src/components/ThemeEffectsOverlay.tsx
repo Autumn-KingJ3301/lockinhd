@@ -28,13 +28,16 @@ export const ThemeEffectsOverlay: React.FC<ThemeEffectsOverlayProps> = ({
     if (!ctx) return;
 
     let animationId: number;
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let width = (canvas.width = Math.min(window.innerWidth, 8192));
+    let height = (canvas.height = Math.min(window.innerHeight, 8192));
 
     const handleResize = () => {
       if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      // Cap dimensions to a safe maximum to prevent "Canvas exceeds max size" errors
+      const safeWidth = Math.min(window.innerWidth, 8192);
+      const safeHeight = Math.min(window.innerHeight, 8192);
+      width = canvas.width = safeWidth;
+      height = canvas.height = safeHeight;
     };
     window.addEventListener("resize", handleResize);
 

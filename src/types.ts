@@ -129,3 +129,44 @@ export type JournalEntry = {
   voiceMemos?: JournalVoiceMemo[];
 };
 
+export type AgendaItem = {
+  id: string;
+  text: string;
+  completed: boolean;
+};
+
+export type BrainstormNote = {
+  id: string;
+  text: string;
+  createdAt: number;
+  canvasElementId?: string;
+};
+
+export type BrainstormTask = {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
+};
+
+export type BrainstormConnection = {
+  id: string;
+  fromId: string;
+  toId: string;
+  label?: string;
+  createdAt: number;
+};
+
+export type BrainstormBoard = {
+  id: string;
+  title: string;
+  elements: any[];
+  appState: any;
+  agenda: AgendaItem[];
+  notes: BrainstormNote[];
+  tasks: BrainstormTask[];
+  connections: BrainstormConnection[];
+  createdAt: number;
+  updatedAt: number;
+  lastOpenedAt?: number;
+};

@@ -6,6 +6,7 @@ import { Register } from "./pages/Register";
 import { Profile } from "./pages/Profile";
 import { ThemeStore } from "./pages/ThemeStore";
 import { Journal } from "./pages/Journal";
+import { Brainstorm } from "./pages/Brainstorm";
 import { useGlobalTheme } from "./hooks/useGlobalTheme";
 import { useLockinStore } from "./store/useLockinStore";
 
@@ -27,8 +28,10 @@ function App() {
       <Route path="/profile" element={<Profile />} />
       <Route path="/themes" element={<ThemeStore />} />
       <Route path="/journal" element={<Journal />} />
+      <Route path="/brainstorm" element={<Brainstorm />} />
     </Routes>
   );
 }
 
 export default App;
+

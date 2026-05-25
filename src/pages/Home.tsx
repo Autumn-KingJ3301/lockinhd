@@ -876,6 +876,16 @@ export const Home = () => {
       return;
     }
 
+    if (cmdName === "brainstorm") {
+      setToastMsg("Opening Brainstorm Canvas...");
+      setInput("");
+      setTimeout(() => {
+        navigate("/brainstorm");
+      }, 300);
+      return;
+    }
+
+
     if (cmdName === "theme-install") {
       if (!args.trim()) {
         setToastMsg("Usage: /theme-install [JSON theme]");

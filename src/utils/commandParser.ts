@@ -355,8 +355,16 @@ export const commandRegistry: CommandSchema[] = [
     description: "Close active archive and restore workspace",
     shortcuts: ["close", "ca"],
     args: []
+  },
+  {
+    name: "brainstorm",
+    category: "nav",
+    description: "Open the Brainstorm Infinite Canvas",
+    shortcuts: ["bs", "canvas"],
+    args: []
   }
 ];
+
 
 export function parseDuration(durationStr: string): number | null {
   const match = durationStr.trim().match(/^(\+|-)?(\d+)([ms]?)$/i);

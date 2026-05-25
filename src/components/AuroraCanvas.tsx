@@ -57,10 +57,14 @@ export const AuroraCanvas: React.FC<AuroraCanvasProps> = ({
         // Handle resizing
         const resizeCanvases = () => {
             if (!starsCanvas || !auroraCanvas) return;
-            starsCanvas.width = window.innerWidth;
-            starsCanvas.height = window.innerHeight;
-            auroraCanvas.width = Math.ceil(window.innerWidth / resolutionScale);
-            auroraCanvas.height = Math.ceil(window.innerHeight / resolutionScale);
+            // Cap dimensions to a safe maximum to prevent "Canvas exceeds max size" errors
+            const safeWidth = Math.min(window.innerWidth, 8192);
+            const safeHeight = Math.min(window.innerHeight, 8192);
+            
+            starsCanvas.width = safeWidth;
+            starsCanvas.height = safeHeight;
+            auroraCanvas.width = Math.ceil(safeWidth / resolutionScale);
+            auroraCanvas.height = Math.ceil(safeHeight / resolutionScale);
         };
         window.addEventListener("resize", resizeCanvases);
         resizeCanvases();
